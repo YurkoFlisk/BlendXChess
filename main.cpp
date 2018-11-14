@@ -25,10 +25,13 @@ int main(void)
 	string strMove;
 	eng.reset();
 	auto st = chrono::high_resolution_clock::now();
-	cout << eng.perft(5) << endl;
-	auto en = chrono::high_resolution_clock::now();
-	cout << "Perft(5) is " << chrono::duration_cast<
-		chrono::milliseconds>(en - st).count() << "ms\n";
+	for (int i = 5; i <= 6; ++i)
+	{
+		cout << eng.perft(i) << endl;
+		auto en = chrono::high_resolution_clock::now();
+		cout << "Perft(" << i << ") is " << chrono::duration_cast<
+			chrono::milliseconds>(en - st).count() << "ms\n";
+	}
 	cout << "Set timelimit please (in ms): ";
 	cin >> timeLimit;
 	cout << "Set search depth please: ";
