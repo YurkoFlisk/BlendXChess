@@ -24,9 +24,9 @@ int main(void)
 	Move cpuMove;
 	string strMove;
 	eng.reset();
-	auto st = chrono::high_resolution_clock::now();
 	for (int i = 5; i <= 6; ++i)
 	{
+		auto st = chrono::high_resolution_clock::now();
 		cout << eng.perft(i) << endl;
 		auto en = chrono::high_resolution_clock::now();
 		cout << "Perft(" << i << ") is " << chrono::duration_cast<
