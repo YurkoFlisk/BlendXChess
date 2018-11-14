@@ -23,7 +23,7 @@ Bitboard bbCastlingInner[COLOR_CNT][CASTLING_SIDE_CNT];
 Magic mRookMagics[SQUARE_CNT];
 Magic mBishopMagics[SQUARE_CNT];
 Key ZobristPSQ[COLOR_CNT][PIECETYPE_CNT][SQUARE_CNT];
-Key ZobristCR[BLACK_OOO + 1];
+Key ZobristCR[CR_BLACK_OOO + 1];
 Key ZobristEP[FILE_CNT];
 Key ZobristSide;
 
@@ -59,10 +59,10 @@ void initZobrist(void)
 		PRNG_MOD = 4586769527459239595;
 	PRNGen lcg(1, PRNG_MUL, PRNG_ADD, PRNG_MOD);
 	ZobristSide = lcg.getNext();
-	ZobristCR[WHITE_OO] = lcg.getNext();
-	ZobristCR[WHITE_OOO] = lcg.getNext();
-	ZobristCR[BLACK_OO] = lcg.getNext();
-	ZobristCR[BLACK_OOO] = lcg.getNext();
+	ZobristCR[CR_WHITE_OO] = lcg.getNext();
+	ZobristCR[CR_WHITE_OOO] = lcg.getNext();
+	ZobristCR[CR_BLACK_OO] = lcg.getNext();
+	ZobristCR[CR_BLACK_OOO] = lcg.getNext();
 	for (int8_t f = fileFromAN('a'); f <= fileFromAN('h'); ++f)
 		ZobristEP[f] = lcg.getNext();
 	for (Color c = WHITE; c <= BLACK; ++c)
@@ -149,13 +149,13 @@ Square popLSB(Bitboard& bb)
 
 //============================================================
 // Computes bitboard of attacks from given square on 4 given
-// directions(lines) with given relative occupancy
+// directions (lines) with given relative occupancy
 //============================================================
 Bitboard lineAttacks(Square from, Bitboard relOcc, const Square dir[4])
 {
 	Bitboard attacks = 0;
 	for (int8_t di = 0; di < 4; ++di)
-		for (Square to = from + dir[di]; validSquare(to) &&
+		for (Square to = from + dir[di]; to.isValid() &&
 			distance(to, to - dir[di]) <= 2; to += dir[di])
 		{
 			attacks |= bbSquare[to];
@@ -183,17 +183,17 @@ void initBB(void)
 	for (int8_t i = 0; i < DIAG_CNT; ++i)
 	{
 		for (int8_t r = (i > 7 ? i - 7 : 0), c = (i > 7 ? 0 : 7 - i); r < 8 && c < 8; ++r, ++c)
-			bbDiagonal[i] |= bbSquare[makeSquare(r, c)];
+			bbDiagonal[i] |= bbSquare[Square(r, c)];
 		for (int8_t r = (i > 7 ? 7 : i), c = (i > 7 ? i - 7 : 0); r >= 0 && c < 8; --r, ++c)
-			bbAntidiagonal[i] |= bbSquare[makeSquare(r, c)];
+			bbAntidiagonal[i] |= bbSquare[Square(r, c)];
 	}
 	// Initialize bbPawnAttack
 	for (Color c = WHITE; c <= BLACK; ++c)
-		for (Square sq = SQ_A1, to; sq != SQ_H8; ++sq)
+		for (Square sq = SQ_A1, to; sq < SQ_H8; ++sq)
 		{
-			if (getFile(sq) != fileFromAN('a') && validSquare(to = sq + D_LU - (c << 4)))
+			if (sq.getFile() != fileFromAN('a') && (to = sq + D_LU - (c << 4)).isValid())
 				bbPawnAttack[c][sq] |= bbSquare[to];
-			if (getFile(sq) != fileFromAN('h') && validSquare(to = sq + D_RU - (c << 4)))
+			if (sq.getFile() != fileFromAN('h') && (to = sq + D_RU - (c << 4)).isValid())
 				bbPawnAttack[c][sq] |= bbSquare[to];
 		}
 	// Initialize bbKnightAttack and bbKingAttack
@@ -203,9 +203,9 @@ void initBB(void)
 	for (Square sq = SQ_A1, to; sq < SQUARE_CNT; ++sq)
 		for (int8_t d = 0; d < 8; ++d)
 		{
-			if (validSquare(to = sq + knightStep[d]) && distance(sq, to) == 3)
+			if ((to = sq + knightStep[d]).isValid() && distance(sq, to) == 3)
 				bbKnightAttack[sq] |= bbSquare[to];
-			if (validSquare(to = sq + kingStep[d]) && distance(sq, to) <= 2)
+			if ((to = sq + kingStep[d]).isValid() && distance(sq, to) <= 2)
 				bbKingAttack[sq] |= bbSquare[to];
 		}
 	// Initialize bitboards for castling's inners
@@ -219,9 +219,9 @@ void initBB(void)
 	static constexpr Square
 		ROOK_DIR[4] = { D_UP, D_DOWN, D_LEFT, D_RIGHT },
 		BISHOP_DIR[4] = { D_LD, D_RD, D_RU, D_LU };
-	initMagics(ROOK_DIR, bbRank, bbFile, getRank, getFile,
+	initMagics(ROOK_DIR, bbRank, bbFile, &Square::getRank, &Square::getFile,
 		mRookMagics);
-	initMagics(BISHOP_DIR, bbDiagonal, bbAntidiagonal, getDiagonal, getAntidiagonal,
+	initMagics(BISHOP_DIR, bbDiagonal, bbAntidiagonal, &Square::getDiagonal, &Square::getAntidiagonal,
 		mBishopMagics);
 }
 
@@ -229,7 +229,8 @@ void initBB(void)
 // Initialization of magics bitboards for rooks and bishops (piece is determined by parameters)
 //============================================================
 void initMagics(const Square dir[4], const Bitboard bbLine1[], const Bitboard bbLine2[],
-	int8_t getLine1(Square), int8_t getLine2(Square), Magic mPieceMagics[SQUARE_CNT])
+	int8_t (Square::*getLine1)(void) const, int8_t (Square::*getLine2)(void) const,
+	Magic mPieceMagics[SQUARE_CNT])
 {
 	static constexpr Bitboard PRNG_MUL = 6364136223846930515, PRNG_ADD = 14426950408963407454,
 		PRNG_MOD = 4586769527459239595;
@@ -240,9 +241,9 @@ void initMagics(const Square dir[4], const Bitboard bbLine1[], const Bitboard bb
 	{
 		// Border (we should carefully handle situations where rook is itself on border)
 		// It remains the same for bishops because 'and' changes don't affect them
-		bbBorder = ((BB_RANK_1 | BB_RANK_8) & ~bbRank[getRank(sq)]) | ((BB_FILE_A | BB_FILE_H) & ~bbFile[getFile(sq)]);
+		bbBorder = ((BB_RANK_1 | BB_RANK_8) & ~bbRank[sq.getRank()]) | ((BB_FILE_A | BB_FILE_H) & ~bbFile[sq.getFile()]);
 		// Relative occupancy mask
-		mPieceMagics[sq].relOcc = (bbLine1[getLine1(sq)] | bbLine2[getLine2(sq)])
+		mPieceMagics[sq].relOcc = (bbLine1[(sq.*getLine1)()] | bbLine2[(sq.*getLine2)()])
 			& ~bbSquare[sq] & ~bbBorder;
 		// Shifts (which is 64 minus number of bits in relOcc)
 		mPieceMagics[sq].shifts = 64 - countSet(mPieceMagics[sq].relOcc);

@@ -24,11 +24,14 @@ int main(void)
 	Move cpuMove;
 	string strMove;
 	eng.reset();
-	auto st = chrono::high_resolution_clock::now();
-	cout << eng.perft(5) << endl;
-	auto en = chrono::high_resolution_clock::now();
-	cout << "Perft(5) is " << chrono::duration_cast<
-		chrono::milliseconds>(en - st).count() << "ms\n";
+	for (int i = 1; i <= 6; ++i)
+	{
+		auto st = chrono::high_resolution_clock::now();
+		cout << eng.perft(i);
+		auto en = chrono::high_resolution_clock::now();
+		cout << " Perft("<< i << ") is " << chrono::duration_cast<
+			chrono::milliseconds>(en - st).count() << "ms\n";
+	}
 	cout << "Set timelimit please (in ms): ";
 	cin >> timeLimit;
 	cout << "Set search depth please: ";
@@ -53,21 +56,23 @@ int main(void)
 	{
 		if (eng.getTurn() == userTurn)
 			do
+			{
+				cout << "Enter your move please: ";
 				cin >> strMove;
-			while (!eng.DoMove(strMove));
+			} while (!eng.DoMove(strMove));
 		else
 		{
 			auto st = chrono::high_resolution_clock::now();
 			const Score score = eng.AIMove(nodes, cpuMove, resDepth, depth);
 			auto en = chrono::high_resolution_clock::now();
 			eng.DoMove(cpuMove);
-			if (getMoveType(cpuMove) == MT_CASTLING)
-				cout << (getFile(getTo(cpuMove)) == fileFromAN('g') ? "O-O" : "O-O-O");
+			if (cpuMove.getType() == MT_CASTLING)
+				cout << (cpuMove.getTo().getFile() == fileFromAN('g') ? "O-O" : "O-O-O");
 			else
 			{
-				cout << squareToAN(getFrom(cpuMove)) << '-' << squareToAN(getTo(cpuMove));
-				if (getMoveType(cpuMove) == MT_PROMOTION)
-					switch (getPromotion(cpuMove))
+				cout << cpuMove.getFrom().toAN() << '-' << cpuMove.getTo().toAN();
+				if (cpuMove.getType() == MT_PROMOTION)
+					switch (cpuMove.getPromotion())
 					{
 					case KNIGHT: cout << 'N'; break;
 					case QUEEN: cout << 'Q'; break;

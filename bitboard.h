@@ -54,7 +54,7 @@ extern Bitboard bbCastlingInner[COLOR_CNT][CASTLING_SIDE_CNT];
 extern Magic mRookMagics[SQUARE_CNT];
 extern Magic mBishopMagics[SQUARE_CNT];
 extern Key ZobristPSQ[COLOR_CNT][PIECETYPE_CNT][SQUARE_CNT];
-extern Key ZobristCR[BLACK_OOO + 1];
+extern Key ZobristCR[CR_BLACK_OOO + 1];
 extern Key ZobristEP[FILE_CNT];
 extern Key ZobristSide;
 
@@ -78,7 +78,7 @@ Bitboard lineAttacks(Square, Bitboard, Square[4]);
 void initBB(void);
 // Initialization of magics bitboards for rooks and bishops(piece is determined by parameters)
 void initMagics(const Square[4], const Bitboard[], const Bitboard[],
-	int8_t(Square), int8_t(Square), Magic[SQUARE_CNT]);
+	int8_t (Square::*)() const, int8_t (Square::*)() const, Magic[SQUARE_CNT]);
 
 //============================================================
 // Inline functions
@@ -99,7 +99,7 @@ inline Bitboard magicBishopAttacks(Square from, Bitboard occupancy)
 }
 
 // Shifts a bitboard in a direction specified by one of the D_ variables
-template<Square DELTA>
+template<SquareRaw DELTA>
 constexpr inline Bitboard shiftD(Bitboard bb) noexcept
 {
 	static_assert(DELTA == D_LEFT || DELTA == D_RIGHT || DELTA == D_UP || DELTA == D_DOWN ||

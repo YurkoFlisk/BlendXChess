@@ -65,7 +65,7 @@ void Position::reset(void)
 bool Position::isAttacked(Square sq, Color by) const
 {
 	assert(by == WHITE || by == BLACK);
-	assert(validSquare(sq));
+	assert(sq.isValid());
 	return	(bbPawnAttack[opposite(by)][sq] &			pieceBB(by, PAWN)) ||
 			(bbKnightAttack[sq] &						pieceBB(by, KNIGHT)) ||
 			(bbKingAttack[sq] &							pieceBB(by, KING)) ||
@@ -79,7 +79,7 @@ bool Position::isAttacked(Square sq, Color by) const
 Square Position::leastAttacker(Square sq, Color by) const
 {
 	assert(by == WHITE || by == BLACK);
-	assert(validSquare(sq));
+	assert(sq.isValid());
 	Bitboard from;
 	if (from = (bbPawnAttack[opposite(by)][sq] & pieceBB(by, PAWN)))
 		return getLSB(from);
@@ -102,13 +102,13 @@ Square Position::leastAttacker(Square sq, Color by) const
 //============================================================
 void Position::doMove(Move move)
 {
-	const Square from = getFrom(move), to = getTo(move);
-	const MoveType type = getMoveType(move);
+	const Square from = move.getFrom(), to = move.getTo();
+	const MoveType type = move.getType();
 	const PieceType from_pt = getPieceType(board[from]);
 	prevStates[gamePly] = info;
 	if (info.epSquare != SQ_NONE)
 	{
-		info.keyZobrist ^= ZobristEP[getFile(info.epSquare)];
+		info.keyZobrist ^= ZobristEP[info.epSquare.getFile()];
 		info.epSquare = SQ_NONE; // If it is present, it will be set later
 	}
 	info.justCaptured = (type == MT_EN_PASSANT ? PAWN : getPieceType(board[to]));
@@ -125,7 +125,7 @@ void Position::doMove(Move move)
 		if (abs(to - from) == 16)
 		{
 			info.epSquare = (from + to) >> 1;
-			info.keyZobrist ^= ZobristEP[getFile(info.epSquare)];
+			info.keyZobrist ^= ZobristEP[info.epSquare.getFile()];
 		}
 		info.rule50 = 0;
 	}
@@ -134,33 +134,33 @@ void Position::doMove(Move move)
 	if (from_pt == KING)
 		if (turn == WHITE)
 		{
-			if (info.castlingRight & WHITE_OO)
-				info.castlingRight &= ~WHITE_OO, info.keyZobrist ^= ZobristCR[WHITE_OO];
-			if (info.castlingRight & WHITE_OOO)
-				info.castlingRight &= ~WHITE_OOO, info.keyZobrist ^= ZobristCR[WHITE_OOO];
+			if (info.castlingRight & CR_WHITE_OO)
+				info.castlingRight &= ~CR_WHITE_OO, info.keyZobrist ^= ZobristCR[CR_WHITE_OO];
+			if (info.castlingRight & CR_WHITE_OOO)
+				info.castlingRight &= ~CR_WHITE_OOO, info.keyZobrist ^= ZobristCR[CR_WHITE_OOO];
 		}
 		else
 		{
-			if (info.castlingRight & BLACK_OO)
-				info.castlingRight &= ~BLACK_OO, info.keyZobrist ^= ZobristCR[BLACK_OO];
-			if (info.castlingRight & BLACK_OOO)
-				info.castlingRight &= ~BLACK_OOO, info.keyZobrist ^= ZobristCR[BLACK_OOO];
+			if (info.castlingRight & CR_BLACK_OO)
+				info.castlingRight &= ~CR_BLACK_OO, info.keyZobrist ^= ZobristCR[CR_BLACK_OO];
+			if (info.castlingRight & CR_BLACK_OOO)
+				info.castlingRight &= ~CR_BLACK_OOO, info.keyZobrist ^= ZobristCR[CR_BLACK_OOO];
 		}
 	else if (from_pt == ROOK)
 		if (turn == WHITE)
 		{
-			if (from == SQ_A1 && (info.castlingRight & WHITE_OOO))
-				info.castlingRight &= ~WHITE_OOO, info.keyZobrist ^= ZobristCR[WHITE_OOO];
-			else if (from == SQ_H1 && (info.castlingRight & WHITE_OO))
-				info.castlingRight &= ~WHITE_OO, info.keyZobrist ^= ZobristCR[WHITE_OO];
+			if (from == SQ_A1 && (info.castlingRight & CR_WHITE_OOO))
+				info.castlingRight &= ~CR_WHITE_OOO, info.keyZobrist ^= ZobristCR[CR_WHITE_OOO];
+			else if (from == SQ_H1 && (info.castlingRight & CR_WHITE_OO))
+				info.castlingRight &= ~CR_WHITE_OO, info.keyZobrist ^= ZobristCR[CR_WHITE_OO];
 		}
-		else if (from == SQ_A8 && (info.castlingRight & BLACK_OOO))
-			info.castlingRight &= ~BLACK_OOO, info.keyZobrist ^= ZobristCR[BLACK_OOO];
-		else if (from == SQ_H8 && (info.castlingRight & BLACK_OO))
-			info.castlingRight &= ~BLACK_OO, info.keyZobrist ^= ZobristCR[BLACK_OO];
+		else if (from == SQ_A8 && (info.castlingRight & CR_BLACK_OOO))
+			info.castlingRight &= ~CR_BLACK_OOO, info.keyZobrist ^= ZobristCR[CR_BLACK_OOO];
+		else if (from == SQ_H8 && (info.castlingRight & CR_BLACK_OO))
+			info.castlingRight &= ~CR_BLACK_OO, info.keyZobrist ^= ZobristCR[CR_BLACK_OO];
 	if (type == MT_PROMOTION)
 	{
-		putPiece(to, turn, getPromotion(move));
+		putPiece(to, turn, move.getPromotion());
 		removePiece(from);
 	}
 	else
@@ -168,8 +168,8 @@ void Position::doMove(Move move)
 	if (type == MT_CASTLING)
 	{
 		const bool kingSide = (to > from);
-		movePiece(makeSquare(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('h') : fileFromAN('a')),
-			makeSquare(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('f') : fileFromAN('d')));
+		movePiece(Square(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('h') : fileFromAN('a')),
+			Square(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('f') : fileFromAN('d')));
 	}
 	info.keyZobrist ^= ZobristSide;
 	turn = opposite(turn);
@@ -181,8 +181,8 @@ void Position::doMove(Move move)
 //============================================================
 void Position::undoMove(Move move)
 {
-	const Square from = getFrom(move), to = getTo(move);
-	const MoveType type = getMoveType(move);
+	const Square from = move.getFrom(), to = move.getTo();
+	const MoveType type = move.getType();
 	--gamePly;
 	turn = opposite(turn);
 	if (type == MT_PROMOTION)
@@ -200,8 +200,8 @@ void Position::undoMove(Move move)
 	if (type == MT_CASTLING)
 	{
 		const bool kingSide = (to > from);
-		movePiece(makeSquare(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('f') : fileFromAN('d')),
-			makeSquare(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('h') : fileFromAN('a')));
+		movePiece(Square(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('f') : fileFromAN('d')),
+			Square(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('h') : fileFromAN('a')));
 	}
 	info = prevStates[gamePly];
 }
@@ -227,9 +227,9 @@ void Position::revealPawnMoves(Bitboard destBB, Square direction, MoveList& move
 		assert(getPieceColor(board[to]) == (direction == FORWARD ? NO_COLOR : opposite(TURN)));
 		if (TURN == WHITE ? to > SQ_H7 : to < SQ_A2)
 			for (int promIdx = 0; promIdx < 2; ++promIdx)
-				addMoveIfSuitable<TURN, LEGAL>(makeMove(from, to, MT_PROMOTION, promPieceType[promIdx]), moves);
+				addMoveIfSuitable<TURN, LEGAL>(Move(from, to, MT_PROMOTION, promPieceType[promIdx]), moves);
 		else
-			addMoveIfSuitable<TURN, LEGAL>(makeMove(from, to), moves);
+			addMoveIfSuitable<TURN, LEGAL>(Move(from, to), moves);
 	}
 }
 
@@ -246,7 +246,7 @@ void Position::revealMoves(Square from, Bitboard attackBB, MoveList& moves)
 		const Square to = popLSB(attackBB);
 		assert(getPieceColor(board[from]) == TURN);
 		assert(getPieceColor(board[to]) != TURN);
-		addMoveIfSuitable<TURN, LEGAL>(makeMove(from, to), moves);
+		addMoveIfSuitable<TURN, LEGAL>(Move(from, to), moves);
 	}
 }
 
@@ -273,10 +273,10 @@ void Position::generatePawnMoves(MoveList& moves)
 		{
 			assert(board[info.epSquare - FORWARD] == makePiece(opposite(TURN), PAWN));
 			Square from;
-			if (getFile(info.epSquare) != 7 && board[from = info.epSquare - LEFT_CAPT] == TURN_PAWN)
-				addMoveIfSuitable<TURN, LEGAL>(makeMove(from, info.epSquare, MT_EN_PASSANT), moves);
-			if (getFile(info.epSquare) != 0 && board[from = info.epSquare - RIGHT_CAPT] == TURN_PAWN)
-				addMoveIfSuitable<TURN, LEGAL>(makeMove(from, info.epSquare, MT_EN_PASSANT), moves);
+			if (info.epSquare.getFile() != 7 && board[from = info.epSquare - LEFT_CAPT] == TURN_PAWN)
+				addMoveIfSuitable<TURN, LEGAL>(Move(from, info.epSquare, MT_EN_PASSANT), moves);
+			if (info.epSquare.getFile() != 0 && board[from = info.epSquare - RIGHT_CAPT] == TURN_PAWN)
+				addMoveIfSuitable<TURN, LEGAL>(Move(from, info.epSquare, MT_EN_PASSANT), moves);
 		}
 	}
 	if (MG_TYPE & MG_NON_CAPTURES)
@@ -290,7 +290,7 @@ void Position::generatePawnMoves(MoveList& moves)
 		{
 			const Square to = popLSB(destBB);
 			assert(getPieceColor(board[to]) == NO_COLOR);
-			addMoveIfSuitable<TURN, LEGAL>(makeMove(to - (FORWARD + FORWARD), to), moves);
+			addMoveIfSuitable<TURN, LEGAL>(Move(to - (FORWARD + FORWARD), to), moves);
 		}
 	}
 }
@@ -326,11 +326,11 @@ void Position::generateMoves(MoveList& moves)
 		if ((info.castlingRight & makeCastling(TURN, OO)) && (occupiedBB() & bbCastlingInner[TURN][OO]) == 0 &&
 			!(isAttacked(REL_SQ_G1, OPPONENT) || isAttacked(REL_SQ_F1, OPPONENT) ||
 				isAttacked(REL_SQ_E1, OPPONENT)))
-			moves.add(makeMove(REL_SQ_E1, REL_SQ_G1, MT_CASTLING));
+			moves.add(Move(REL_SQ_E1, REL_SQ_G1, MT_CASTLING));
 		if ((info.castlingRight & makeCastling(TURN, OOO)) && (occupiedBB() & bbCastlingInner[TURN][OOO]) == 0 &&
 			!(isAttacked(REL_SQ_C1, OPPONENT) || isAttacked(REL_SQ_D1, OPPONENT) ||
 				isAttacked(REL_SQ_E1, OPPONENT)))
-			moves.add(makeMove(REL_SQ_E1, REL_SQ_C1, MT_CASTLING));
+			moves.add(Move(REL_SQ_E1, REL_SQ_C1, MT_CASTLING));
 	}
 	// Target for usual piece moves
 	const Bitboard target = (MG_TYPE == MG_CAPTURES ? colorBB[opposite(TURN)] :
@@ -338,20 +338,38 @@ void Position::generateMoves(MoveList& moves)
 	Square from;
 	// Knight moves
 	for (int i = 0; i < pieceCount[TURN][KNIGHT]; ++i)
-		revealMoves<TURN, LEGAL>(from = pieceSq[turn][KNIGHT][i], bbKnightAttack[from] & target, moves);
+	{
+		from = pieceSq[turn][KNIGHT][i];
+		revealMoves<TURN, LEGAL>(from, bbKnightAttack[from] & target, moves);
+	}
 	// King moves
 	for (int i = 0; i < pieceCount[TURN][KING]; ++i)
-		revealMoves<TURN, LEGAL>(from = pieceSq[turn][KING][i], bbKingAttack[from] & target, moves);
+	{
+		from = pieceSq[turn][KING][i];
+		revealMoves<TURN, LEGAL>(from, bbKingAttack[from] & target, moves);
+	}
 	// Rook and partially queen moves
 	for (int i = 0; i < pieceCount[TURN][ROOK]; ++i)
-		revealMoves<TURN, LEGAL>(from = pieceSq[turn][ROOK][i], magicRookAttacks(from, occupiedBB()) & target, moves);
+	{
+		from = pieceSq[turn][ROOK][i];
+		revealMoves<TURN, LEGAL>(from, magicRookAttacks(from, occupiedBB()) & target, moves);
+	}
 	for (int i = 0; i < pieceCount[TURN][QUEEN]; ++i)
-		revealMoves<TURN, LEGAL>(from = pieceSq[turn][QUEEN][i], magicRookAttacks(from, occupiedBB()) & target, moves);
+	{
+		from = pieceSq[turn][QUEEN][i];
+		revealMoves<TURN, LEGAL>(from, magicRookAttacks(from, occupiedBB()) & target, moves);
+	}
 	// Bishop and partially queen moves
 	for (int i = 0; i < pieceCount[TURN][BISHOP]; ++i)
-		revealMoves<TURN, LEGAL>(from = pieceSq[turn][BISHOP][i], magicBishopAttacks(from, occupiedBB()) & target, moves);
+	{
+		from = pieceSq[turn][BISHOP][i];
+		revealMoves<TURN, LEGAL>(from, magicBishopAttacks(from, occupiedBB()) & target, moves);
+	}
 	for (int i = 0; i < pieceCount[TURN][QUEEN]; ++i)
-		revealMoves<TURN, LEGAL>(from = pieceSq[turn][QUEEN][i], magicBishopAttacks(from, occupiedBB()) & target, moves);
+	{
+		from = pieceSq[turn][QUEEN][i];
+		revealMoves<TURN, LEGAL>(from, magicBishopAttacks(from, occupiedBB()) & target, moves);
+	}
 }
 
 //============================================================
@@ -378,7 +396,7 @@ void Position::loadPosition(std::istream& istr)
 				continue;
 			}
 			const PieceType pieceType = pieceTypeFromFEN(toupper(piece));
-			board[makeSquare(rank, file)] = makePiece(
+			board[Square(rank, file)] = makePiece(
 				isupper(piece) ? WHITE : BLACK, pieceType);
 		}
 		if (rank)
@@ -423,7 +441,7 @@ void Position::loadPosition(std::istream& istr)
 			|| (epRank != 2 && epRank != 5))
 			throw std::runtime_error("Invalid en-passant square "
 				+ std::string({ epFile, rankToAN(epRank) }));
-		info.epSquare = makeSquare(fileFromAN(epFile), epRank);
+		info.epSquare = Square(fileFromAN(epFile), epRank);
 	}
 	// Halfmove counter (for 50 move draw rule) information
 	istr >> info.rule50;
@@ -449,7 +467,7 @@ void Position::writePosition(std::ostream& ostr)
 	{
 		for (int file = 0; file < 8; ++file)
 		{
-			const Piece curPiece = board[makeSquare(rank, file)];
+			const Piece curPiece = board[Square(rank, file)];
 			if (curPiece == NO_PIECE)
 			{
 				++consecutiveEmpty;
@@ -475,13 +493,13 @@ void Position::writePosition(std::ostream& ostr)
 		ostr << "- ";
 	else
 	{
-		if (info.castlingRight & WHITE_OO)
+		if (info.castlingRight & CR_WHITE_OO)
 			ostr << 'K';
-		if (info.castlingRight & WHITE_OOO)
+		if (info.castlingRight & CR_WHITE_OOO)
 			ostr << 'Q';
-		if (info.castlingRight & BLACK_OO)
+		if (info.castlingRight & CR_BLACK_OO)
 			ostr << 'k';
-		if (info.castlingRight & BLACK_OOO)
+		if (info.castlingRight & CR_BLACK_OOO)
 			ostr << 'q';
 		ostr << ' ';
 	}
@@ -489,7 +507,7 @@ void Position::writePosition(std::ostream& ostr)
 	if (info.epSquare == SQ_NONE)
 		ostr << "- ";
 	else
-		ostr << getFile(info.epSquare) + 'a' << getRank(info.epSquare) << ' ';
+		ostr << info.epSquare.getFile() + 'a' << info.epSquare.getRank() << ' ';
 	// Halfmove counter (for 50 move draw rule) information
 	ostr << info.rule50 << ' ';
 	// Counter of full moves (starting at 1) information

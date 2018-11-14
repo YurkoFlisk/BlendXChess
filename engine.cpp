@@ -100,9 +100,9 @@ bool Engine::DoMove(const std::string& strMove)
 	// Convert the move from string representation to Move type. Legality here is
 	// checked only partially (to the stage when move is convertible to Move representation)
 	if (strMove == "O-O")
-		move = makeCastlingMove(turn, OO);
+		move = Move(turn, OO);
 	else if (strMove == "O-O-O")
-		move = makeCastlingMove(turn, OOO);
+		move = Move(turn, OOO);
 	else if (strMove.size() < 5 || strMove.size() > 6 || strMove[2] != '-')
 		return false;
 	else
@@ -112,21 +112,21 @@ bool Engine::DoMove(const std::string& strMove)
 		if (!validRank(rfrom) || !validFile(ffrom)
 			|| !validRank(rto) || !validFile(fto))
 			return false;
-		const Square from = makeSquare(rfrom, ffrom), to = makeSquare(rto, fto);
+		const Square from = Square(rfrom, ffrom), to = Square(rto, fto);
 		if (strMove.size() == 6)
 			switch (strMove[5])
 			{
-			case 'N': move = makeMove(from, to, MT_PROMOTION, KNIGHT); break;
-			case 'B': move = makeMove(from, to, MT_PROMOTION, BISHOP); break;
-			case 'R': move = makeMove(from, to, MT_PROMOTION, ROOK); break;
-			case 'Q': move = makeMove(from, to, MT_PROMOTION, QUEEN); break;
+			case 'N': move = Move(from, to, MT_PROMOTION, KNIGHT); break;
+			case 'B': move = Move(from, to, MT_PROMOTION, BISHOP); break;
+			case 'R': move = Move(from, to, MT_PROMOTION, ROOK); break;
+			case 'Q': move = Move(from, to, MT_PROMOTION, QUEEN); break;
 			default: return false;
 			}
 		else if (getPieceType(board[from]) == PAWN && distance(from, to) == 2
 			&& board[to] == NO_PIECE && rfrom == relRank(2, turn))
-			move = makeMove(from, to, MT_EN_PASSANT);
+			move = Move(from, to, MT_EN_PASSANT);
 		else
-			move = makeMove(from, to);
+			move = Move(from, to);
 	}
 	// Use Move type representation of move for next actions
 	return DoMove(move);
@@ -215,7 +215,7 @@ Move Engine::moveFromSAN(const std::string& moveSAN)
 	// Parse moveSAN to reveal given move information
 	// Parse castlings first
 	if (validCastlingSideAN(moveSAN))
-		move = makeCastlingMove(turn, castlingSideFromAN(moveSAN));
+		move = Move(turn, castlingSideFromAN(moveSAN));
 	// Parse pawn moves
 	else if (validFileAN(moveSAN[0]))
 	{
@@ -224,7 +224,7 @@ Move Engine::moveFromSAN(const std::string& moveSAN)
 		{
 			if (moveSAN.size() < 4 || 5 < moveSAN.size() || !validSquareAN(moveSAN.substr(2, 2)))
 				throw std::runtime_error("Invalid pawn capture destination square");
-			to = squareFromAN(moveSAN.substr(2, 2));
+			to = Square::fromAN(moveSAN.substr(2, 2));
 			fromFile = fileFromAN(moveSAN[0]);
 			if (moveSAN.size() == 5)
 			{
@@ -232,22 +232,22 @@ Move Engine::moveFromSAN(const std::string& moveSAN)
 					throw std::runtime_error("Invalid promotion piece type");
 				promotionPT = pieceTypeFromAN(moveSAN[4]);
 			}
-			else if (getRank(to) == RANK_CNT - 1)
+			else if (to.getRank() == RANK_CNT - 1)
 				throw std::runtime_error("Missing promotion piece type");
 		}
 		else
 		{
 			if (!validRankAN(moveSAN[1]) || moveSAN.size() > 3)
 				throw std::runtime_error("Invalid pawn move destination square");
-			to = squareFromAN(moveSAN.substr(0, 2));
-			fromFile = getFile(to);
+			to = Square::fromAN(moveSAN.substr(0, 2));
+			fromFile = to.getFile();
 			if (moveSAN.size() == 3)
 			{
 				if (!validPieceTypeAN(moveSAN[2]))
 					throw std::runtime_error("Invalid promotion piece type");
 				promotionPT = pieceTypeFromAN(moveSAN[2]);
 			}
-			else if (getRank(to) == RANK_CNT - 1)
+			else if (to.getRank() == RANK_CNT - 1)
 				throw std::runtime_error("Missing promotion piece type");
 		}
 	}
@@ -262,7 +262,7 @@ Move Engine::moveFromSAN(const std::string& moveSAN)
 			if (!validFileAN(moveSAN[1]) || !validRankAN(moveSAN[2]))
 				throw std::runtime_error("Invalid move source square");
 			fromFile = fileFromAN(moveSAN[1]), fromRank = rankFromAN(moveSAN[2]);
-			to = squareFromAN(moveSAN.substr(3, 2));
+			to = Square::fromAN(moveSAN.substr(3, 2));
 		}
 		else if (moveSAN.size() == 4)
 		{
@@ -272,10 +272,10 @@ Move Engine::moveFromSAN(const std::string& moveSAN)
 				fromFile = fileFromAN(moveSAN[1]);
 			else
 				fromRank = rankFromAN(moveSAN[1]);
-			to = squareFromAN(moveSAN.substr(2, 2));
+			to = Square::fromAN(moveSAN.substr(2, 2));
 		}
 		else
-			to = squareFromAN(moveSAN.substr(1, 2));
+			to = Square::fromAN(moveSAN.substr(1, 2));
 	}
 	// Generate all legal moves
 	MoveList legalMoves;
@@ -285,11 +285,11 @@ Move Engine::moveFromSAN(const std::string& moveSAN)
 	bool found = false;
 	while ((legalMove = legalMoves.getNext()) != MOVE_NONE)
 		if ((move == MOVE_NONE || move == legalMove) &&
-			(fromFile == -1 || fromFile == getFile(getFrom(legalMove))) &&
-			(fromRank == -1 || fromRank == getRank(getFrom(legalMove))) &&
-			(to == SQ_NONE || to == getTo(legalMove)) &&
-			(pieceType == NO_PIECE_TYPE || pieceType == getPieceType(board[getFrom(legalMove)])) &&
-			(getMoveType(legalMove) != MT_PROMOTION || promotionPT == getPromotion(legalMove)))
+			(fromFile == -1 || fromFile == legalMove.getFrom().getFile()) &&
+			(fromRank == -1 || fromRank == legalMove.getFrom().getRank()) &&
+			(to == SQ_NONE || to == legalMove.getTo()) &&
+			(pieceType == NO_PIECE_TYPE || pieceType == getPieceType(board[legalMove.getFrom()])) &&
+			(legalMove.getType() != MT_PROMOTION || promotionPT == legalMove.getPromotion()))
 			if (found)
 				throw std::runtime_error("Given move information is ambiguous");
 			else
@@ -307,27 +307,27 @@ std::string Engine::moveToSAN(Move move)
 	Move legalMove;
 	MoveList moveList;
 	generateLegalMovesEx(moveList);
-	const Square from = getFrom(move), to = getTo(move);
-	const MoveType moveType = getMoveType(move);
+	const Square from = move.getFrom(), to = move.getTo();
+	const MoveType moveType = move.getType();
 	const PieceType pieceType = getPieceType(board[from]);
 	bool found = false, fileUncertainty = false, rankUncertainty = false;
 	while ((legalMove = moveList.getNext()) != MOVE_NONE)
 	{
-		const Square lmFrom = getFrom(legalMove), lmTo = getTo(legalMove);
+		const Square lmFrom = legalMove.getFrom(), lmTo = legalMove.getTo();
 		if (move == legalMove)
 			found = true;
 		else if (to == lmTo && pieceType == getPieceType(board[lmFrom]))
 		{
-			if (getFile(from) == getFile(lmFrom))
+			if (from.getFile() == lmFrom.getFile())
 				fileUncertainty = true;
-			if (getRank(from) == getRank(lmFrom))
+			if (from.getRank() == lmFrom.getRank())
 				rankUncertainty = true;
 		}
 	}
 	if (!found)
 		throw std::runtime_error("Given move is illegal");
 	if (moveType == MT_CASTLING)
-		switch (getCastlingSide(move))
+		switch (move.getCastlingSide())
 		{
 		case OO:	return "O-O";
 		case OOO:	return "O-O-O";
@@ -335,20 +335,20 @@ std::string Engine::moveToSAN(Move move)
 	std::stringstream SAN;
 	if (pieceType == PAWN)
 	{
-		if (getFile(from) != getFile(to)) // works for en passant as well
-			SAN << getFileAN(from) << 'x';
-		SAN << squareToAN(to);
+		if (from.getFile() != to.getFile()) // works for en passant as well
+			SAN << from.getFileAN() << 'x';
+		SAN << to.toAN();
 		if (moveType == MT_PROMOTION)
-			SAN << pieceTypeToAN(getPromotion(move));
+			SAN << pieceTypeToAN(move.getPromotion());
 	}
 	else
 	{
 		SAN << pieceTypeToAN(pieceType);
 		if (rankUncertainty)
-			SAN << getFileAN(from);
+			SAN << from.getFileAN();
 		if (fileUncertainty)
-			SAN << getRankAN(from);
-		SAN << squareToAN(to);
+			SAN << from.getRankAN();
+		SAN << to.toAN();
 	}
 	return SAN.str();
 }
@@ -481,10 +481,11 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 	while ((move = moveList.getNext()) != MOVE_NONE)
 	{
 		// Delta pruning
-		if (standPat + ptWeight[getPieceType(board[getTo(move)])] + DELTA_MARGIN < alpha)
+		if (standPat + ptWeight[getPieceType(board[move.getTo()])] + DELTA_MARGIN < alpha)
 			continue;
 		// Test capture with SEE and if it's score is < 0, than prune
-		if (board[getTo(move)] != NO_PIECE && SEECapture(getFrom(move), getTo(move), turn) < SCORE_ZERO)
+		if (board[move.getTo()] != NO_PIECE && SEECapture(
+			move.getFrom(), move.getTo(), turn) < SCORE_ZERO)
 			continue;
 		// Do move
 		doMove(move);
@@ -576,7 +577,7 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 					curBestScore = score;
 					curBestMove = move;
 					// Update history
-					history[getFrom(move)][getTo(move)] += searchDepth * searchDepth;
+					history[move.getFrom()][move.getTo()] += searchDepth * searchDepth;
 					// If beta-cutoff occurs, stop search
 					if (curBestScore >= beta)
 						break;
@@ -707,7 +708,7 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 				if (alpha >= beta)
 				{
 					// Update history table
-					history[getFrom(move)][getTo(move)] += depth * depth;
+					history[move.getFrom()][move.getTo()] += depth * depth;
 					// Update killers
 					if (true)
 					{
