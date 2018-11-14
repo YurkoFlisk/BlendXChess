@@ -41,7 +41,7 @@ namespace
 		PRNGen(Bitboard seed, Bitboard m, Bitboard a, Bitboard md)
 			: cur(seed), mul(m), add(a), mod(md)
 		{}
-		inline Bitboard getNext(void) volatile // volatile because of VS compiler optimizer bug with -Og parameter
+		inline Bitboard getNext(void) // volatile because of VS compiler optimizer bug with -Og parameter
 		{
 			return ((cur *= mul) += add) % mod;
 		}
@@ -65,9 +65,9 @@ void initZobrist(void)
 	ZobristCR[CR_BLACK_OOO] = lcg.getNext();
 	for (int8_t f = fileFromAN('a'); f <= fileFromAN('h'); ++f)
 		ZobristEP[f] = lcg.getNext();
-	for (Color c = WHITE; c <= BLACK; ++c)
+	for (Side c = WHITE; c <= BLACK; ++c)
 		for (PieceType pt = PAWN; pt <= KING; ++pt)
-			for (Square sq = SQ_A1; sq <= SQ_H8; ++sq)
+			for (Square sq = Sq::A1; sq <= Sq::H8; ++sq)
 				ZobristPSQ[c][pt][sq] = lcg.getNext();
 
 }
@@ -106,7 +106,7 @@ int countSet(Bitboard bb)
 //============================================================
 Square getLSB(Bitboard bb)
 {
-	Square lsb = SQ_A1;
+	Square lsb = Sq::A1;
 	// Binary search
 	if ((bb & 0xffffffff) == 0)
 		lsb += Square(32), bb >>= 32;
@@ -129,7 +129,7 @@ Square getLSB(Bitboard bb)
 Square popLSB(Bitboard& bb)
 {
 	Bitboard b = bb;
-	Square lsb = SQ_A1;
+	Square lsb = Sq::A1;
 	// Binary search
 	if ((b & 0xffffffff) == 0)
 		lsb += Square(32), b >>= 32;
@@ -170,6 +170,7 @@ Bitboard lineAttacks(Square from, Bitboard relOcc, const Square dir[4])
 //============================================================
 void initBB(void)
 {
+	using namespace Sq;
 	// Initialize bbRank, bbFile and bbSquare
 	bbRank[0] = BB_RANK_1;
 	for (int8_t i = 1; i < RANK_CNT; ++i)
@@ -177,7 +178,7 @@ void initBB(void)
 	bbFile[0] = BB_FILE_A;
 	for (int8_t i = 1; i < FILE_CNT; ++i)
 		bbFile[i] = (bbFile[i - 1] << 1);
-	for (Square sq = SQ_A1; sq < SQUARE_CNT; ++sq)
+	for (Square sq = A1; sq < SQUARE_CNT; ++sq)
 		bbSquare[sq] = (1ull << sq);
 	// Initialize bbDiagonal and bbAntidiagonal
 	for (int8_t i = 0; i < DIAG_CNT; ++i)
@@ -188,8 +189,8 @@ void initBB(void)
 			bbAntidiagonal[i] |= bbSquare[Square(r, c)];
 	}
 	// Initialize bbPawnAttack
-	for (Color c = WHITE; c <= BLACK; ++c)
-		for (Square sq = SQ_A1, to; sq < SQ_H8; ++sq)
+	for (Side c = WHITE; c <= BLACK; ++c)
+		for (Square sq = A1, to; sq < H8; ++sq)
 		{
 			if (sq.getFile() != fileFromAN('a') && (to = sq + D_LU - (c << 4)).isValid())
 				bbPawnAttack[c][sq] |= bbSquare[to];
@@ -200,7 +201,7 @@ void initBB(void)
 	static constexpr Square
 		knightStep[8] = { -17, -15, -10, -6, 6, 10, 15, 17 },
 		kingStep[8] = { D_LD, D_DOWN, D_RD, D_LEFT, D_RIGHT, D_LU, D_UP, D_RU};
-	for (Square sq = SQ_A1, to; sq < SQUARE_CNT; ++sq)
+	for (Square sq = A1, to; sq < SQUARE_CNT; ++sq)
 		for (int8_t d = 0; d < 8; ++d)
 		{
 			if ((to = sq + knightStep[d]).isValid() && distance(sq, to) == 3)
@@ -209,11 +210,11 @@ void initBB(void)
 				bbKingAttack[sq] |= bbSquare[to];
 		}
 	// Initialize bitboards for castling's inners
-	for (Color c = WHITE; c <= BLACK; ++c)
+	for (Side c = WHITE; c <= BLACK; ++c)
 	{
-		bbCastlingInner[c][OO] = bbSquare[relSquare(SQ_G1, c)] | bbSquare[relSquare(SQ_F1, c)];
-		bbCastlingInner[c][OOO] = bbSquare[relSquare(SQ_B1, c)] | bbSquare[relSquare(SQ_C1, c)]
-			| bbSquare[relSquare(SQ_D1, c)];
+		bbCastlingInner[c][OO] = bbSquare[relSquare(G1, c)] | bbSquare[relSquare(F1, c)];
+		bbCastlingInner[c][OOO] = bbSquare[relSquare(B1, c)] | bbSquare[relSquare(C1, c)]
+			| bbSquare[relSquare(D1, c)];
 	}
 	// Initialize magics
 	static constexpr Square
@@ -237,7 +238,7 @@ void initMagics(const Square dir[4], const Bitboard bbLine1[], const Bitboard bb
 	static Bitboard* attackTablePos = bbAttackTable;
 	Bitboard curOcc, bbBorder, magicCandidate, attacks[1 << 12];
 	int idx, siz, magicIdx;
-	for (Square sq = SQ_A1; sq < SQUARE_CNT; ++sq)
+	for (Square sq = Sq::A1; sq < SQUARE_CNT; ++sq)
 	{
 		// Border (we should carefully handle situations where rook is itself on border)
 		// It remains the same for bishops because 'and' changes don't affect them

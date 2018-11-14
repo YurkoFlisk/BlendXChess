@@ -14,7 +14,7 @@
 // Basic typedef types
 //============================================================
 
-typedef int8_t SquareRaw, Color, Depth, PieceType, Piece;
+typedef int8_t SquareRaw, Side, Depth, PieceType, Piece;
 typedef int16_t Score;
 typedef uint64_t Key;
 typedef uint16_t MoveRaw;
@@ -48,13 +48,13 @@ namespace MoveDesc
 
 // Piece types
 enum : PieceType {
-	NO_PIECE_TYPE,
+	PT_NULL,
 	PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING,
 	PT_ALL = 0 // For using as index in bitboard arrays
 };
 // Pieces
 enum : Piece {
-	NO_PIECE,
+	PIECE_NULL,
 	W_PAWN = 1, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
 	B_PAWN = 9, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING
 };
@@ -93,9 +93,9 @@ enum GameState : int8_t {
 	GS_WHITE_WIN,
 	GS_BLACK_WIN
 };
-// Colors
-enum : int8_t {
-	WHITE, BLACK, NO_COLOR,
+// Sides
+enum : Side {
+	WHITE, BLACK, NULL_COLOR,
 };
 // Depths
 enum : Depth {
@@ -107,18 +107,18 @@ enum : Score {
 	SCORE_LOSE_MAX = SCORE_LOSE + MAX_GAME_PLY, SCORE_WIN_MIN = SCORE_WIN - MAX_GAME_PLY
 };
 // Squares
-namespace
+namespace Sq
 {
 	enum : SquareRaw {
-		SQ_A1, SQ_B1, SQ_C1, SQ_D1, SQ_E1, SQ_F1, SQ_G1, SQ_H1,
-		SQ_A2, SQ_B2, SQ_C2, SQ_D2, SQ_E2, SQ_F2, SQ_G2, SQ_H2,
-		SQ_A3, SQ_B3, SQ_C3, SQ_D3, SQ_E3, SQ_F3, SQ_G3, SQ_H3,
-		SQ_A4, SQ_B4, SQ_C4, SQ_D4, SQ_E4, SQ_F4, SQ_G4, SQ_H4,
-		SQ_A5, SQ_B5, SQ_C5, SQ_D5, SQ_E5, SQ_F5, SQ_G5, SQ_H5,
-		SQ_A6, SQ_B6, SQ_C6, SQ_D6, SQ_E6, SQ_F6, SQ_G6, SQ_H6,
-		SQ_A7, SQ_B7, SQ_C7, SQ_D7, SQ_E7, SQ_F7, SQ_G7, SQ_H7,
-		SQ_A8, SQ_B8, SQ_C8, SQ_D8, SQ_E8, SQ_F8, SQ_G8, SQ_H8,
-		SQ_NONE,
+		A1, B1, C1, D1, E1, F1, G1, H1,
+		A2, B2, C2, D2, E2, F2, G2, H2,
+		A3, B3, C3, D3, E3, F3, G3, H3,
+		A4, B4, C4, D4, E4, F4, G4, H4,
+		A5, B5, C5, D5, E5, F5, G5, H5,
+		A6, B6, C6, D6, E6, F6, G6, H6,
+		A7, B7, C7, D7, E7, F7, G7, H7,
+		A8, B8, C8, D8, E8, F8, G8, H8,
+		NONE,
 		D_LEFT = -1, D_RIGHT = 1, D_UP = FILE_CNT, D_DOWN = -FILE_CNT,
 		D_LU = D_LEFT + D_UP, D_RU = D_RIGHT + D_UP, D_LD = D_LEFT + D_DOWN, D_RD = D_RIGHT + D_DOWN
 	};
@@ -126,15 +126,15 @@ namespace
 // Moves
 enum : MoveRaw {
 	// There are no such valid moves ('from' and 'to' are the same), so we can use these values as special ones
-	MOVE_NONE = 0, // 'from' == 'to' == SQ_A1
-	MOVE_NULL = 0xfff // 'from' == 'to' == SQ_H8
+	MOVE_NONE = 0, // 'from' == 'to' == Sq::A1
+	MOVE_NULL = 0xfff // 'from' == 'to' == Sq::H8
 };
 
 //============================================================
 // Inline functions
 //============================================================
 
-constexpr inline Color opposite(Color c) noexcept
+constexpr inline Side opposite(Side c) noexcept
 {
 	return c == WHITE ? BLACK : WHITE;
 }
@@ -164,7 +164,7 @@ constexpr inline Color opposite(Color c) noexcept
 //	return abs(getRank(sq1) - getRank(sq2)) + abs(getFile(sq1) - getFile(sq2));
 //}
 // Rank relative to a given side
-constexpr inline int8_t relRank(int8_t r, Color c) noexcept
+constexpr inline int8_t relRank(int8_t r, Side c) noexcept
 {
 	return c == WHITE ? r : RANK_CNT - 1 - r;
 }
@@ -231,7 +231,7 @@ constexpr bool validPieceTypeFEN(char ptFEN) noexcept
 
 //constexpr inline bool cornerSquare(Square sq) noexcept
 //{
-//	return sq == SQ_A1 || sq == SQ_A8 || sq == SQ_H1 || sq == SQ_H8;
+//	return sq == Sq::A1 || sq == Sq::A8 || sq == Sq::H1 || sq == Sq::H8;
 //}
 //
 //constexpr inline bool borderSquare(Square sq) noexcept
@@ -315,7 +315,7 @@ inline std::string castlingSideToAN(CastlingSide cs)
 //	return castlingSideToAN(getCastlingSide(m));
 //}
 
-constexpr inline CastlingRight makeCastling(Color c, CastlingSide cs) noexcept
+constexpr inline CastlingRight makeCastling(Side c, CastlingSide cs) noexcept
 {
 	return CastlingRight(CR_WHITE_OO << ((c << 1) | cs));
 }
@@ -330,7 +330,7 @@ constexpr inline PieceType pieceTypeFromAN(char ptAN) noexcept
 	case 'R':	return ROOK;
 	case 'Q':	return QUEEN;
 	case 'K':	return KING;
-	default:	return NO_PIECE_TYPE;
+	default:	return PT_NULL;
 	}
 }
 
@@ -365,12 +365,12 @@ constexpr inline PieceType getPieceType(Piece pc) noexcept
 	return PieceType(pc & 7);
 }
 
-constexpr inline Color getPieceColor(Piece pc) noexcept
+constexpr inline Side getPieceColor(Piece pc) noexcept
 {
-	return pc == NO_PIECE ? NO_COLOR : Color(pc >> 3);
+	return pc == PIECE_NULL ? NULL_COLOR : Side(pc >> 3);
 }
 
-constexpr inline Piece makePiece(Color c, PieceType pt) noexcept
+constexpr inline Piece makePiece(Side c, PieceType pt) noexcept
 {
 	return Piece((c << 3) | pt);
 }
@@ -384,8 +384,8 @@ constexpr inline Piece makePiece(Color c, PieceType pt) noexcept
 //
 //constexpr inline Move makeCastlingMove(Color c, CastlingSide cs) noexcept
 //{
-//	return cs == OO ? makeMove(relSquare(SQ_E1, c), relSquare(SQ_G1, c), MT_CASTLING)
-//		: makeMove(relSquare(SQ_E1, c), relSquare(SQ_C1, c), MT_CASTLING);
+//	return cs == OO ? makeMove(relSquare(Sq::E1, c), relSquare(Sq::G1, c), MT_CASTLING)
+//		: makeMove(relSquare(Sq::E1, c), relSquare(Sq::C1, c), MT_CASTLING);
 //}
 //
 //constexpr inline MoveType getMoveType(Move m) noexcept
@@ -492,15 +492,15 @@ class Square : public OperatorEnvelope<Square>
 	friend class Move;
 	friend struct OperatorEnvelope<Square>;
 public:
-	static Square fromAN(const std::string& sqAN)
+	static inline Square fromAN(const std::string& sqAN)
 	{
 		return Square(rankFromAN(sqAN[1]), fileFromAN(sqAN[0]));
 	}
-	Square(void) = default;
-	constexpr Square(SquareRaw sq) noexcept
+	inline Square(void) = default;
+	constexpr inline Square(SquareRaw sq) noexcept
 		: sq(sq)
 	{}
-	constexpr Square(int8_t rank, int8_t file) noexcept
+	constexpr inline Square(int8_t rank, int8_t file) noexcept
 		: sq((rank << 3) | file)
 	{}
 	constexpr inline int8_t getFile(void) const noexcept
@@ -526,14 +526,14 @@ public:
 	}
 	constexpr inline bool isCorner(void) const noexcept
 	{
-		return sq == SQ_A1 || sq == SQ_A8 || sq == SQ_H1 || sq == SQ_H8;
+		return sq == Sq::A1 || sq == Sq::A8 || sq == Sq::H1 || sq == Sq::H8;
 	}
 	constexpr inline bool isValid(void) const noexcept
 	{
-		return SQ_A1 <= sq && sq < SQUARE_CNT;
+		return Sq::A1 <= sq && sq < SQUARE_CNT;
 	}
 	// Square relative to a given side (flips row if c is BLACK)
-	constexpr inline Square relativeTo(Color c) const noexcept
+	constexpr inline Square relativeTo(Side c) const noexcept
 	{
 		return c == WHITE ? *this : sq + FILE_CNT * (RANK_CNT - 1 - (getRank() << 1));
 	}
@@ -549,7 +549,7 @@ public:
 	{
 		return { (char)(getFile() + 'a'), (char)(getRank() + '1') };
 	}
-	constexpr inline operator SquareRaw() const noexcept
+	constexpr inline operator SquareRaw(void) const noexcept
 	{
 		return sq;
 	}
@@ -570,7 +570,7 @@ inline int8_t distance(Square sq1, Square sq2) noexcept
 {
 	return abs(sq1.getRank() - sq2.getRank()) + abs(sq1.getFile() - sq2.getFile());
 }
-constexpr inline Square relSquare(Square sq, Color c) noexcept
+constexpr inline Square relSquare(Square sq, Side c) noexcept
 {
 	return sq.relativeTo(c);
 }
@@ -578,16 +578,16 @@ constexpr inline Square relSquare(Square sq, Color c) noexcept
 class Move
 {
 public:
-	Move(void) = default;
-	constexpr Move(MoveRaw move) noexcept : move(move)
+	inline Move(void) = default;
+	constexpr inline Move(MoveRaw move) noexcept : move(move)
 	{}
-	constexpr Move(Square from, Square to,
+	constexpr inline Move(Square from, Square to,
 		MoveType mt = MT_NORMAL, PieceType promotion = KNIGHT) noexcept : move(
 			makeRaw(from, to, mt, promotion))
 	{}
-	constexpr Move(Color c, CastlingSide cs) noexcept : move(cs == OO
-		? makeRaw(relSquare(SQ_E1, c), relSquare(SQ_G1, c), MT_CASTLING)
-		: makeRaw(relSquare(SQ_E1, c), relSquare(SQ_C1, c), MT_CASTLING))
+	constexpr inline Move(Side c, CastlingSide cs) noexcept : move(cs == OO
+		? makeRaw(relSquare(Sq::E1, c), relSquare(Sq::G1, c), MT_CASTLING)
+		: makeRaw(relSquare(Sq::E1, c), relSquare(Sq::C1, c), MT_CASTLING))
 	{}
 	constexpr inline bool operator==(Move rhs) const noexcept
 	{

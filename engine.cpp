@@ -36,8 +36,8 @@ void Engine::reset(void)
 	for (auto& killer : killers)
 		killer.clear();
 	// History table
-	for (Square from = SQ_A1; from <= SQ_H8; ++from)
-		for (Square to = SQ_A1; to <= SQ_H8; ++to)
+	for (Square from = Sq::A1; from <= Sq::H8; ++from)
+		for (Square to = Sq::A1; to <= Sq::H8; ++to)
 			history[from][to] = SCORE_ZERO;
 }
 
@@ -123,7 +123,7 @@ bool Engine::DoMove(const std::string& strMove)
 			default: return false;
 			}
 		else if (getPieceType(board[from]) == PAWN && distance(from, to) == 2
-			&& board[to] == NO_PIECE && rfrom == relRank(2, turn))
+			&& board[to] == PIECE_NULL && rfrom == relRank(2, turn))
 			move = Move(from, to, MT_EN_PASSANT);
 		else
 			move = Move(from, to);
@@ -206,8 +206,8 @@ Move Engine::moveFromSAN(const std::string& moveSAN)
 {
 	// Set values to move information variables indicating them as unknown
 	int8_t fromFile = -1, fromRank = -1;
-	Square to = SQ_NONE;
-	PieceType pieceType = NO_PIECE_TYPE, promotionPT = NO_PIECE_TYPE;
+	Square to = Sq::NONE;
+	PieceType pieceType = PT_NULL, promotionPT = PT_NULL;
 	Move move = MOVE_NONE;
 	// If move string is too small, don't parse it
 	if (moveSAN.size() < 2)
@@ -287,8 +287,8 @@ Move Engine::moveFromSAN(const std::string& moveSAN)
 		if ((move == MOVE_NONE || move == legalMove) &&
 			(fromFile == -1 || fromFile == legalMove.getFrom().getFile()) &&
 			(fromRank == -1 || fromRank == legalMove.getFrom().getRank()) &&
-			(to == SQ_NONE || to == legalMove.getTo()) &&
-			(pieceType == NO_PIECE_TYPE || pieceType == getPieceType(board[legalMove.getFrom()])) &&
+			(to == Sq::NONE || to == legalMove.getTo()) &&
+			(pieceType == PT_NULL || pieceType == getPieceType(board[legalMove.getFrom()])) &&
 			(legalMove.getType() != MT_PROMOTION || promotionPT == legalMove.getPromotion()))
 			if (found)
 				throw std::runtime_error("Given move information is ambiguous");
@@ -421,13 +421,13 @@ Score Engine::evaluate(void)
 //============================================================
 // Static exchange evaluation
 //============================================================
-Score Engine::SEE(Square sq, Color by)
+Score Engine::SEE(Square sq, Side by)
 {
 	const Square from = leastAttacker(sq, by);
-	if (from == SQ_NONE)
+	if (from == Sq::NONE)
 		return SCORE_ZERO;
 	const Piece capt = board[sq];
-	assert(capt != NO_PIECE);
+	assert(capt != PIECE_NULL);
 	removePiece(sq);
 	movePiece(from, sq);
 	const Score value = std::max(0, ptWeight[getPieceType(capt)] - SEE(sq, opposite(by)));
@@ -439,10 +439,10 @@ Score Engine::SEE(Square sq, Color by)
 //============================================================
 // Static exchange evaluation of specified capture move
 //============================================================
-Score Engine::SEECapture(Square from, Square to, Color by)
+Score Engine::SEECapture(Square from, Square to, Side by)
 {
 	const Piece capt = board[to];
-	assert(capt != NO_PIECE);
+	assert(capt != PIECE_NULL);
 	removePiece(to);
 	movePiece(from, to);
 	const Score value = ptWeight[getPieceType(capt)] - SEE(to, opposite(by));
@@ -484,7 +484,7 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 		if (standPat + ptWeight[getPieceType(board[move.getTo()])] + DELTA_MARGIN < alpha)
 			continue;
 		// Test capture with SEE and if it's score is < 0, than prune
-		if (board[move.getTo()] != NO_PIECE && SEECapture(
+		if (board[move.getTo()] != PIECE_NULL && SEECapture(
 			move.getFrom(), move.getTo(), turn) < SCORE_ZERO)
 			continue;
 		// Do move

@@ -102,6 +102,7 @@ inline Bitboard magicBishopAttacks(Square from, Bitboard occupancy)
 template<SquareRaw DELTA>
 constexpr inline Bitboard shiftD(Bitboard bb) noexcept
 {
+	using namespace Sq;
 	static_assert(DELTA == D_LEFT || DELTA == D_RIGHT || DELTA == D_UP || DELTA == D_DOWN ||
 		DELTA == D_LU || DELTA == D_RU || DELTA == D_LD || DELTA == D_RD,
 		"DELTA template parameter should be one of D_ variables");

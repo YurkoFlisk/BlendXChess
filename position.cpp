@@ -16,53 +16,53 @@ void Position::reset(void)
 	psqScore = 0;
 	info.keyZobrist = 0;
 	info.rule50 = 0;
-	info.justCaptured = NO_PIECE_TYPE;
-	info.epSquare = SQ_NONE;
+	info.justCaptured = PT_NULL;
+	info.epSquare = Sq::NONE;
 	info.castlingRight = CR_ALL;
 	// Reset bitboards
-	for (Color c = 0; c < COLOR_CNT; ++c)
+	for (Side c = 0; c < COLOR_CNT; ++c)
 		colorBB[c] = 0;
 	for (PieceType pt = PT_ALL; pt <= KING; ++pt)
 		pieceTypeBB[pt] = 0;
 	// Reset piece lists
-	for (Color c = 0; c < COLOR_CNT; ++c)
+	for (Side c = 0; c < COLOR_CNT; ++c)
 		for (PieceType pt = PT_ALL; pt <= KING; ++pt)
 			pieceCount[c][pt] = 0;
 	// Reset board
-	for (Square sq = SQ_A1; sq <= SQ_H8; ++sq)
-		board[sq] = NO_PIECE;
+	for (Square sq = Sq::A1; sq <= Sq::H8; ++sq)
+		board[sq] = PIECE_NULL;
 	// Pawns
-	for (Square sq = SQ_A2; sq < SQ_A3; ++sq)
+	for (Square sq = Sq::A2; sq < Sq::A3; ++sq)
 		putPiece(sq, WHITE, PAWN);
-	for (Square sq = SQ_A7; sq < SQ_A8; ++sq)
+	for (Square sq = Sq::A7; sq < Sq::A8; ++sq)
 		putPiece(sq, BLACK, PAWN);
 	// Rooks
-	putPiece(SQ_A1, WHITE, ROOK);
-	putPiece(SQ_H1, WHITE, ROOK);
-	putPiece(SQ_A8, BLACK, ROOK);
-	putPiece(SQ_H8, BLACK, ROOK);
+	putPiece(Sq::A1, WHITE, ROOK);
+	putPiece(Sq::H1, WHITE, ROOK);
+	putPiece(Sq::A8, BLACK, ROOK);
+	putPiece(Sq::H8, BLACK, ROOK);
 	// Knights
-	putPiece(SQ_B1, WHITE, KNIGHT);
-	putPiece(SQ_G1, WHITE, KNIGHT);
-	putPiece(SQ_B8, BLACK, KNIGHT);
-	putPiece(SQ_G8, BLACK, KNIGHT);
+	putPiece(Sq::B1, WHITE, KNIGHT);
+	putPiece(Sq::G1, WHITE, KNIGHT);
+	putPiece(Sq::B8, BLACK, KNIGHT);
+	putPiece(Sq::G8, BLACK, KNIGHT);
 	// Bishops
-	putPiece(SQ_C1, WHITE, BISHOP);
-	putPiece(SQ_F1, WHITE, BISHOP);
-	putPiece(SQ_C8, BLACK, BISHOP);
-	putPiece(SQ_F8, BLACK, BISHOP);
+	putPiece(Sq::C1, WHITE, BISHOP);
+	putPiece(Sq::F1, WHITE, BISHOP);
+	putPiece(Sq::C8, BLACK, BISHOP);
+	putPiece(Sq::F8, BLACK, BISHOP);
 	// Queens
-	putPiece(SQ_D1, WHITE, QUEEN);
-	putPiece(SQ_D8, BLACK, QUEEN);
+	putPiece(Sq::D1, WHITE, QUEEN);
+	putPiece(Sq::D8, BLACK, QUEEN);
 	// King
-	putPiece(SQ_E1, WHITE, KING);
-	putPiece(SQ_E8, BLACK, KING);
+	putPiece(Sq::E1, WHITE, KING);
+	putPiece(Sq::E8, BLACK, KING);
 }
 
 //============================================================
 // Whether a square is attacked by given side
 //============================================================
-bool Position::isAttacked(Square sq, Color by) const
+bool Position::isAttacked(Square sq, Side by) const
 {
 	assert(by == WHITE || by == BLACK);
 	assert(sq.isValid());
@@ -76,7 +76,7 @@ bool Position::isAttacked(Square sq, Color by) const
 //============================================================
 // Least valuable attacker on given square by given side(king is considered most valuable here)
 //============================================================
-Square Position::leastAttacker(Square sq, Color by) const
+Square Position::leastAttacker(Square sq, Side by) const
 {
 	assert(by == WHITE || by == BLACK);
 	assert(sq.isValid());
@@ -94,7 +94,7 @@ Square Position::leastAttacker(Square sq, Color by) const
 		return getLSB(from);
 	if (from = (bbKingAttack[sq] & pieceBB(by, KING)))
 		return getLSB(from);
-	return SQ_NONE;
+	return Sq::NONE;
 }
 
 //============================================================
@@ -106,16 +106,16 @@ void Position::doMove(Move move)
 	const MoveType type = move.getType();
 	const PieceType from_pt = getPieceType(board[from]);
 	prevStates[gamePly] = info;
-	if (info.epSquare != SQ_NONE)
+	if (info.epSquare != Sq::NONE)
 	{
 		info.keyZobrist ^= ZobristEP[info.epSquare.getFile()];
-		info.epSquare = SQ_NONE; // If it is present, it will be set later
+		info.epSquare = Sq::NONE; // If it is present, it will be set later
 	}
 	info.justCaptured = (type == MT_EN_PASSANT ? PAWN : getPieceType(board[to]));
-	if (info.justCaptured != NO_PIECE_TYPE)
+	if (info.justCaptured != PT_NULL)
 	{
 		if (type == MT_EN_PASSANT)
-			removePiece(to + (turn == WHITE ? D_DOWN : D_UP));
+			removePiece(to + (turn == WHITE ? Sq::D_DOWN : Sq::D_UP));
 		else
 			removePiece(to);
 		info.rule50 = 0;
@@ -149,14 +149,14 @@ void Position::doMove(Move move)
 	else if (from_pt == ROOK)
 		if (turn == WHITE)
 		{
-			if (from == SQ_A1 && (info.castlingRight & CR_WHITE_OOO))
+			if (from == Sq::A1 && (info.castlingRight & CR_WHITE_OOO))
 				info.castlingRight &= ~CR_WHITE_OOO, info.keyZobrist ^= ZobristCR[CR_WHITE_OOO];
-			else if (from == SQ_H1 && (info.castlingRight & CR_WHITE_OO))
+			else if (from == Sq::H1 && (info.castlingRight & CR_WHITE_OO))
 				info.castlingRight &= ~CR_WHITE_OO, info.keyZobrist ^= ZobristCR[CR_WHITE_OO];
 		}
-		else if (from == SQ_A8 && (info.castlingRight & CR_BLACK_OOO))
+		else if (from == Sq::A8 && (info.castlingRight & CR_BLACK_OOO))
 			info.castlingRight &= ~CR_BLACK_OOO, info.keyZobrist ^= ZobristCR[CR_BLACK_OOO];
-		else if (from == SQ_H8 && (info.castlingRight & CR_BLACK_OO))
+		else if (from == Sq::H8 && (info.castlingRight & CR_BLACK_OO))
 			info.castlingRight &= ~CR_BLACK_OO, info.keyZobrist ^= ZobristCR[CR_BLACK_OO];
 	if (type == MT_PROMOTION)
 	{
@@ -192,9 +192,9 @@ void Position::undoMove(Move move)
 	}
 	else
 		movePiece(to, from);
-	if (info.justCaptured != NO_PIECE_TYPE)
+	if (info.justCaptured != PT_NULL)
 		if (type == MT_EN_PASSANT)
-			putPiece(to + (turn == WHITE ? D_DOWN : D_UP), opposite(turn), info.justCaptured);
+			putPiece(to + (turn == WHITE ? Sq::D_DOWN : Sq::D_UP), opposite(turn), info.justCaptured);
 		else
 			putPiece(to, opposite(turn), info.justCaptured);
 	if (type == MT_CASTLING)
@@ -209,23 +209,23 @@ void Position::undoMove(Move move)
 //============================================================
 // Reveal PAWN moves in given direction from attack bitboard (legal if LEGAL == true and pseudolegal otherwise)
 //============================================================
-template<Color TURN, bool LEGAL>
+template<Side TURN, bool LEGAL>
 void Position::revealPawnMoves(Bitboard destBB, Square direction, MoveList& moves)
 {
 	static_assert(TURN == WHITE || TURN == BLACK,
 		"TURN template parameter should be either WHITE or BLACK in this function");
 	static constexpr PieceType promPieceType[2] = { KNIGHT, QUEEN };
 	static constexpr Piece TURN_PAWN = (TURN == WHITE ? W_PAWN : B_PAWN);
-	static constexpr Square LEFT_CAPT = (TURN == WHITE ? D_LU : D_LD);
-	static constexpr Square RIGHT_CAPT = (TURN == WHITE ? D_RU : D_RD);
-	static constexpr Square FORWARD = (TURN == WHITE ? D_UP : D_DOWN);
+	static constexpr Square LEFT_CAPT = (TURN == WHITE ? Sq::D_LU : Sq::D_LD);
+	static constexpr Square RIGHT_CAPT = (TURN == WHITE ? Sq::D_RU : Sq::D_RD);
+	static constexpr Square FORWARD = (TURN == WHITE ? Sq::D_UP : Sq::D_DOWN);
 	assert(direction == LEFT_CAPT || direction == RIGHT_CAPT || direction == FORWARD); // Maybe make direction a template parameter?
 	while (destBB)
 	{
 		const Square to = popLSB(destBB), from = to - direction;
 		assert(board[from] == TURN_PAWN);
-		assert(getPieceColor(board[to]) == (direction == FORWARD ? NO_COLOR : opposite(TURN)));
-		if (TURN == WHITE ? to > SQ_H7 : to < SQ_A2)
+		assert(getPieceColor(board[to]) == (direction == FORWARD ? NULL_COLOR : opposite(TURN)));
+		if (TURN == WHITE ? to > Sq::H7 : to < Sq::A2)
 			for (int promIdx = 0; promIdx < 2; ++promIdx)
 				addMoveIfSuitable<TURN, LEGAL>(Move(from, to, MT_PROMOTION, promPieceType[promIdx]), moves);
 		else
@@ -236,7 +236,7 @@ void Position::revealPawnMoves(Bitboard destBB, Square direction, MoveList& move
 //============================================================
 // Reveal NON-PAWN moves from attack bitboard (legal if LEGAL == true and pseudolegal otherwise)
 //============================================================
-template<Color TURN, bool LEGAL>
+template<Side TURN, bool LEGAL>
 void Position::revealMoves(Square from, Bitboard attackBB, MoveList& moves)
 {
 	static_assert(TURN == WHITE || TURN == BLACK,
@@ -253,15 +253,15 @@ void Position::revealMoves(Square from, Bitboard attackBB, MoveList& moves)
 //============================================================
 // Generate all pawn moves for given TURN(should match position's turn value)
 //============================================================
-template<Color TURN, MoveGen MG_TYPE, bool LEGAL>
+template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
 void Position::generatePawnMoves(MoveList& moves)
 {
 	static_assert(TURN == WHITE || TURN == BLACK,
 		"TURN template parameter should be either WHITE or BLACK in this function");
 	static constexpr Piece TURN_PAWN =			(TURN == WHITE ? W_PAWN : B_PAWN);
-	static constexpr Square LEFT_CAPT =			(TURN == WHITE ? D_LU : D_LD);
-	static constexpr Square RIGHT_CAPT =		(TURN == WHITE ? D_RU : D_RD);
-	static constexpr Square FORWARD =			(TURN == WHITE ? D_UP : D_DOWN);
+	static constexpr Square LEFT_CAPT =			(TURN == WHITE ? Sq::D_LU : Sq::D_LD);
+	static constexpr Square RIGHT_CAPT =		(TURN == WHITE ? Sq::D_RU : Sq::D_RD);
+	static constexpr Square FORWARD =			(TURN == WHITE ? Sq::D_UP : Sq::D_DOWN);
 	static constexpr Bitboard BB_REL_RANK_3 =	(TURN == WHITE ? BB_RANK_3 : BB_RANK_6);
 	if (MG_TYPE & MG_CAPTURES)
 	{
@@ -269,7 +269,7 @@ void Position::generatePawnMoves(MoveList& moves)
 		revealPawnMoves<TURN, LEGAL>(shiftD<LEFT_CAPT>(pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], LEFT_CAPT, moves);
 		revealPawnMoves<TURN, LEGAL>(shiftD<RIGHT_CAPT>(pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], RIGHT_CAPT, moves);
 		// En passant
-		if ((MG_TYPE & MG_CAPTURES) && info.epSquare != SQ_NONE)
+		if ((MG_TYPE & MG_CAPTURES) && info.epSquare != Sq::NONE)
 		{
 			assert(board[info.epSquare - FORWARD] == makePiece(opposite(TURN), PAWN));
 			Square from;
@@ -289,7 +289,7 @@ void Position::generatePawnMoves(MoveList& moves)
 		while (destBB)
 		{
 			const Square to = popLSB(destBB);
-			assert(getPieceColor(board[to]) == NO_COLOR);
+			assert(getPieceColor(board[to]) == NULL_COLOR);
 			addMoveIfSuitable<TURN, LEGAL>(Move(to - (FORWARD + FORWARD), to), moves);
 		}
 	}
@@ -298,7 +298,7 @@ void Position::generatePawnMoves(MoveList& moves)
 //============================================================
 // Generate all check evasions (legal if LEGAL == true and pseudolegal otherwise)
 //============================================================
-template<Color TURN, bool LEGAL>
+template<Side TURN, bool LEGAL>
 void Position::generateEvasions(MoveList& moves)
 {
 	generateMoves<TURN, MG_ALL, LEGAL>(moves); // !! TEMPORARILY !!
@@ -307,15 +307,15 @@ void Position::generateEvasions(MoveList& moves)
 //============================================================
 // Generate all moves (legal if LEGAL == true and pseudolegal otherwise)
 //============================================================
-template<Color TURN, MoveGen MG_TYPE, bool LEGAL>
+template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
 void Position::generateMoves(MoveList& moves)
 {
 	static_assert(TURN == WHITE || TURN == BLACK,
 		"TURN template parameter should be either WHITE or BLACK in this function");
-	static constexpr Color OPPONENT = opposite(TURN);
-	static constexpr Square REL_SQ_E1 = relSquare(SQ_E1, TURN),
-		REL_SQ_C1 = relSquare(SQ_C1, TURN), REL_SQ_D1 = relSquare(SQ_D1, TURN),
-		REL_SQ_G1 = relSquare(SQ_G1, TURN), REL_SQ_F1 = relSquare(SQ_F1, TURN);
+	static constexpr Side OPPONENT = opposite(TURN);
+	static constexpr Square REL_SQ_E1 = relSquare(Sq::E1, TURN),
+		REL_SQ_C1 = relSquare(Sq::C1, TURN), REL_SQ_D1 = relSquare(Sq::D1, TURN),
+		REL_SQ_G1 = relSquare(Sq::G1, TURN), REL_SQ_F1 = relSquare(Sq::F1, TURN);
 	// TURN is a template parameter and is used only for optimization purposes, so it should be equal to turn
 	assert(TURN == turn);
 	// Pawn moves
@@ -468,7 +468,7 @@ void Position::writePosition(std::ostream& ostr)
 		for (int file = 0; file < 8; ++file)
 		{
 			const Piece curPiece = board[Square(rank, file)];
-			if (curPiece == NO_PIECE)
+			if (curPiece == PIECE_NULL)
 			{
 				++consecutiveEmpty;
 				continue;
@@ -504,7 +504,7 @@ void Position::writePosition(std::ostream& ostr)
 		ostr << ' ';
 	}
 	// En passant information
-	if (info.epSquare == SQ_NONE)
+	if (info.epSquare == Sq::NONE)
 		ostr << "- ";
 	else
 		ostr << info.epSquare.getFile() + 'a' << info.epSquare.getRank() << ' ';

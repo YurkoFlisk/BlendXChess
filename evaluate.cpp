@@ -93,7 +93,7 @@ Score psqTable[COLOR_CNT][PIECETYPE_CNT][SQUARE_CNT];
 void initPSQ(void)
 {
 	for (PieceType pt = PAWN; pt <= KING; ++pt)
-		for (Square sq = SQ_A1; sq <= SQ_H8; ++sq)
+		for (Square sq = Sq::A1; sq <= Sq::H8; ++sq)
 		{
 			psqTable[WHITE][pt][sq] = ptWeight[pt] + psqBonus[pt][sq];
 			psqTable[BLACK][pt][relSquare(sq, BLACK)] = -psqTable[WHITE][pt][sq];

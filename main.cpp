@@ -15,16 +15,16 @@ int main(void)
 	cout << endl;
 	for (Color c = WHITE; c <= BLACK; ++c)
 		for (PieceType pt = PAWN; pt <= KING; ++pt)
-			for (Square sq = SQ_A1; sq <= SQ_H8; ++sq)
+			for (Square sq = Sq::A1; sq <= Sq::H8; ++sq)
 				cout << ZobristPSQ[c][pt][sq] << endl; */
 	char userWhite;
-	Color userTurn;
+	Side userTurn;
 	Depth resDepth, depth;
 	int nodes, timeLimit, inDepth;
 	Move cpuMove;
 	string strMove;
 	eng.reset();
-	for (int i = 5; i <= 6; ++i)
+	for (int i = 5; i <= 5; ++i)
 	{
 		auto st = chrono::high_resolution_clock::now();
 		cout << eng.perft(i);

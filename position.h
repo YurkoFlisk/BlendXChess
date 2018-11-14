@@ -49,15 +49,15 @@ public:
 	inline int getTurn(void) const noexcept;
 	inline Key getZobristKey(void) const noexcept;
 	// Bitboard helpers
-	inline Bitboard pieceBB(Color, PieceType) const;
+	inline Bitboard pieceBB(Side, PieceType) const;
 	inline Bitboard occupiedBB(void) const;
 	inline Bitboard emptyBB(void) const;
 	// Reset position
 	void reset(void);
 	// Whether a square is attacked by given side
-	bool isAttacked(Square, Color) const;
+	bool isAttacked(Square, Side) const;
 	// Least valuable attacker on given square by given side (king is considered most valuable here)
-	Square leastAttacker(Square, Color) const;
+	Square leastAttacker(Square, Side) const;
 	// Whether current side is in check
 	inline bool isInCheck(void) const;
 	// Load position from a given stream in FEN notation
@@ -66,7 +66,7 @@ public:
 	void writePosition(std::ostream&);
 protected:
 	// Putting, moving and removing pieces
-	inline void putPiece(Square, Color, PieceType);
+	inline void putPiece(Square, Side, PieceType);
 	inline void movePiece(Square, Square);
 	inline void removePiece(Square);
 	// Internal doing and undoing moves
@@ -74,22 +74,22 @@ protected:
 	void undoMove(Move);
 	// Helper for move generating functions
 	// It adds pseudo-legal move to vector if LEGAL == false or, otherwise, if move is legal
-	template<Color TURN, bool LEGAL>
+	template<Side TURN, bool LEGAL>
 	inline void addMoveIfSuitable(Move, MoveList&);
 	// Reveal PAWN moves in given direction from attack bitboard (legal if LEGAL == true and pseudolegal otherwise)
-	template<Color TURN, bool LEGAL>
+	template<Side TURN, bool LEGAL>
 	void revealPawnMoves(Bitboard, Square, MoveList&);
 	// Reveal NON-PAWN moves from attack bitboard (legal if LEGAL == true and pseudolegal otherwise)
-	template<Color TURN, bool LEGAL>
+	template<Side TURN, bool LEGAL>
 	void revealMoves(Square, Bitboard, MoveList&);
 	// Generate all pawn moves
-	template<Color TURN, MoveGen MG_TYPE, bool LEGAL>
+	template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
 	void generatePawnMoves(MoveList&);
 	// Generate all check evasions (legal if LEGAL == true and pseudolegal otherwise)
-	template<Color TURN, bool LEGAL>
+	template<Side TURN, bool LEGAL>
 	void generateEvasions(MoveList&);
 	// Generate all moves (legal if LEGAL == true and pseudolegal otherwise)
-	template<Color TURN, MoveGen MG_TYPE, bool LEGAL>
+	template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
 	void generateMoves(MoveList&);
 	// Generate moves helpers
 	// Note that when we are in check, all evasions are generated regardless of what MG_TYPE parameter is passed
@@ -121,7 +121,7 @@ protected:
 	Score history[SQUARE_CNT][SQUARE_CNT];
 	// Other
 	int gamePly;
-	Color turn;
+	Side turn;
 };
 
 //============================================================
@@ -143,7 +143,7 @@ inline Key Position::getZobristKey(void) const noexcept
 	return info.keyZobrist;
 }
 
-inline Bitboard Position::pieceBB(Color c, PieceType pt) const
+inline Bitboard Position::pieceBB(Side c, PieceType pt) const
 {
 	return colorBB[c] & pieceTypeBB[pt];
 }
@@ -163,9 +163,9 @@ inline bool Position::isInCheck(void) const
 	return isAttacked(pieceSq[turn][KING][0], opposite(turn));
 }
 
-inline void Position::putPiece(Square sq, Color c, PieceType pt)
+inline void Position::putPiece(Square sq, Side c, PieceType pt)
 {
-	assert(board[sq] == NO_PIECE);
+	assert(board[sq] == PIECE_NULL);
 	colorBB[c] |= bbSquare[sq];
 	pieceTypeBB[pt] |= bbSquare[sq];
 	pieceTypeBB[PT_ALL] |= bbSquare[sq];
@@ -177,32 +177,32 @@ inline void Position::putPiece(Square sq, Color c, PieceType pt)
 
 inline void Position::movePiece(Square from, Square to)
 {
-	const Color c = getPieceColor(board[from]);
+	const Side c = getPieceColor(board[from]);
 	const PieceType pt = getPieceType(board[from]);
 	const Bitboard fromToBB = bbSquare[from] ^ bbSquare[to];
-	assert(pt != NO_PIECE_TYPE);
-	assert(board[to] == NO_PIECE);
+	assert(pt != PT_NULL);
+	assert(board[to] == PIECE_NULL);
 	colorBB[c] ^= fromToBB;
 	pieceTypeBB[pt] ^= fromToBB;
 	pieceTypeBB[PT_ALL] ^= fromToBB;
 	pieceSq[c][pt][index[to] = index[from]] = to;
 	board[to] = board[from];
-	board[from] = NO_PIECE;
+	board[from] = PIECE_NULL;
 	psqScore += psqTable[c][pt][to] - psqTable[c][pt][from];
 	info.keyZobrist ^= ZobristPSQ[c][pt][from] ^ ZobristPSQ[c][pt][to];
 }
 
 inline void Position::removePiece(Square sq)
 {
-	const Color c = getPieceColor(board[sq]);
+	const Side c = getPieceColor(board[sq]);
 	const PieceType pt = getPieceType(board[sq]);
-	assert(pt != NO_PIECE_TYPE);
+	assert(pt != PT_NULL);
 	colorBB[c] ^= bbSquare[sq];
 	pieceTypeBB[pt] ^= bbSquare[sq];
 	pieceTypeBB[PT_ALL] ^= bbSquare[sq];
 	std::swap(pieceSq[c][pt][--pieceCount[c][pt]], pieceSq[c][pt][index[sq]]);
 	index[pieceSq[c][pt][index[sq]]] = index[sq];
-	board[sq] = NO_PIECE;
+	board[sq] = PIECE_NULL;
 	psqScore -= psqTable[c][pt][sq];
 	info.keyZobrist ^= ZobristPSQ[c][pt][sq];
 }
@@ -252,7 +252,7 @@ inline void Position::generateLegalMovesEx(MoveList& moves)
 	moves.reset();
 }
 
-template<Color TURN, bool LEGAL>
+template<Side TURN, bool LEGAL>
 inline void Position::addMoveIfSuitable(Move move, MoveList& moves)
 {
 	static_assert(TURN == WHITE || TURN == BLACK,

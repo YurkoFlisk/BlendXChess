@@ -78,9 +78,9 @@ protected:
 	// Static evaluation
 	Score evaluate(void);
 	// Static exchange evaluation
-	Score SEE(Square, Color);
+	Score SEE(Square, Side);
 	// Static exchange evaluation of specified capture move
-	Score SEECapture(Square, Square, Color);
+	Score SEECapture(Square, Square, Side);
 	// Quiescent search
 	Score quiescentSearch(Score, Score);
 	// Transposition table
