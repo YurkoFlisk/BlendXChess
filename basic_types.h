@@ -407,11 +407,11 @@ namespace
 	template<typename T>
 	struct Envelope
 	{
-		constexpr T& _this(void) noexcept
+		constexpr inline T& _this(void) noexcept
 		{
 			return static_cast<T&>(*this);
 		}
-		constexpr const T& _this(void) const noexcept
+		constexpr inline const T& _this(void) const noexcept
 		{
 			return static_cast<T&>(*this);
 		}
@@ -444,42 +444,42 @@ namespace
 		{
 			return T(lhs.raw() / rhs.raw());
 		}*/
-		constexpr T& operator++() noexcept
+		constexpr inline T& operator++() noexcept
 		{
 			++_this().raw();
 			return _this();
 		}
-		constexpr T& operator++(int) noexcept
+		constexpr inline T& operator++(int) noexcept
 		{
 			++_this().raw();
 			return _this();
 		}
-		constexpr T& operator--() noexcept
+		constexpr inline T& operator--() noexcept
 		{
 			--_this().raw();
 			return _this();
 		}
-		constexpr T& operator--(int) noexcept
+		constexpr inline T& operator--(int) noexcept
 		{
 			--_this().raw();
 			return _this();
 		}
-		constexpr T& operator+=(T rhs) noexcept
+		constexpr inline T& operator+=(T rhs) noexcept
 		{
 			_this().raw() += rhs.raw();
 			return _this();
 		}
-		constexpr T& operator-=(T rhs) noexcept
+		constexpr inline T& operator-=(T rhs) noexcept
 		{
 			_this().raw() -= rhs.raw();
 			return _this();
 		}
-		constexpr T& operator*=(T rhs) noexcept
+		constexpr inline T& operator*=(T rhs) noexcept
 		{
 			_this().raw() *= rhs.raw();
 			return _this();
 		}
-		constexpr T& operator/=(T rhs)
+		constexpr inline T& operator/=(T rhs)
 		{
 			_this().raw() /= rhs.raw();
 			return _this();
@@ -503,32 +503,32 @@ public:
 	constexpr Square(int8_t rank, int8_t file) noexcept
 		: sq((rank << 3) | file)
 	{}
-	constexpr int8_t getFile(void) const noexcept
+	constexpr inline int8_t getFile(void) const noexcept
 	{
 		return sq & 7;
 	}
-	constexpr int8_t getRank(void) const noexcept
+	constexpr inline int8_t getRank(void) const noexcept
 	{
 		return sq >> 3;
 	}
-	constexpr int8_t getDiagonal(void) const noexcept
+	constexpr inline int8_t getDiagonal(void) const noexcept
 	{
 		return getRank() - getFile() + 7;
 	}
-	constexpr int8_t getAntidiagonal(void) const noexcept
+	constexpr inline int8_t getAntidiagonal(void) const noexcept
 	{
 		return getRank() + getFile();
 	}
-	constexpr bool isBorder(void) const noexcept
+	constexpr inline bool isBorder(void) const noexcept
 	{
 		const int8_t r = getRank(), f = getFile();
 		return r == RANK_MIN || r == RANK_MAX || f == FILE_MIN || f == FILE_MAX;
 	}
-	constexpr bool isCorner(void) const noexcept
+	constexpr inline bool isCorner(void) const noexcept
 	{
 		return sq == SQ_A1 || sq == SQ_A8 || sq == SQ_H1 || sq == SQ_H8;
 	}
-	constexpr bool isValid(void) const noexcept
+	constexpr inline bool isValid(void) const noexcept
 	{
 		return SQ_A1 <= sq && sq < SQUARE_CNT;
 	}
@@ -549,15 +549,15 @@ public:
 	{
 		return { (char)(getFile() + 'a'), (char)(getRank() + '1') };
 	}
-	constexpr operator SquareRaw() const noexcept
+	constexpr inline operator SquareRaw() const noexcept
 	{
 		return sq;
 	}
-	constexpr SquareRaw& raw(void) noexcept
+	constexpr inline SquareRaw& raw(void) noexcept
 	{
 		return sq;
 	}
-	constexpr const SquareRaw& raw(void) const noexcept
+	constexpr inline const SquareRaw& raw(void) const noexcept
 	{
 		return sq;
 	}
@@ -589,48 +589,48 @@ public:
 		? makeRaw(relSquare(SQ_E1, c), relSquare(SQ_G1, c), MT_CASTLING)
 		: makeRaw(relSquare(SQ_E1, c), relSquare(SQ_C1, c), MT_CASTLING))
 	{}
-	constexpr bool operator==(Move rhs) const noexcept
+	constexpr inline bool operator==(Move rhs) const noexcept
 	{
 		return move == rhs.move;
 	}
-	constexpr bool operator!=(Move rhs) const noexcept
+	constexpr inline bool operator!=(Move rhs) const noexcept
 	{
 		return move != rhs.move;
 	}
-	constexpr Square getFrom(void) const noexcept
+	constexpr inline Square getFrom(void) const noexcept
 	{
 		return Square((move & MoveDesc::FROM_MASK) >> MoveDesc::FROM_FB);
 	}
-	constexpr Square getTo(void) const noexcept
+	constexpr inline Square getTo(void) const noexcept
 	{
 		return Square((move & MoveDesc::TO_MASK) >> MoveDesc::TO_FB);
 	}
-	constexpr MoveType getType(void) const noexcept
+	constexpr inline MoveType getType(void) const noexcept
 	{
 		return MoveType((move & MoveDesc::TYPE_MASK) >> MoveDesc::TYPE_FB);
 	}
-	constexpr PieceType getPromotion(void) const noexcept
+	constexpr inline PieceType getPromotion(void) const noexcept
 	{
 		return ((move & MoveDesc::PROMOTION_MASK) >> MoveDesc::PROMOTION_FB) + 2;
 	}
-	constexpr CastlingSide getCastlingSide(void) const noexcept
+	constexpr inline CastlingSide getCastlingSide(void) const noexcept
 	{
 		return getTo().getFile() == 2 ? OOO : OO;
 	}
-	std::string getCastlingSideAN(void) const
+	inline std::string getCastlingSideAN(void) const
 	{
 		return castlingSideToAN(getCastlingSide());
 	}
-	constexpr MoveRaw& raw(void) noexcept
+	constexpr inline MoveRaw& raw(void) noexcept
 	{
 		return move;
 	}
-	constexpr const MoveRaw& raw(void) const noexcept
+	constexpr inline const MoveRaw& raw(void) const noexcept
 	{
 		return move;
 	}
 private:
-	static constexpr uint16_t makeRaw(Square from, Square to,
+	static constexpr inline uint16_t makeRaw(Square from, Square to,
 		MoveType mt = MT_NORMAL, PieceType promotion = KNIGHT) noexcept
 	{
 		return (from.sq << MoveDesc::FROM_FB) | (to.sq << MoveDesc::TO_FB) |
