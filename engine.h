@@ -14,7 +14,7 @@
 #include "transtable.h"
 
 constexpr bool TIME_CHECK_ENABLED = true;
-constexpr int TIME_CHECK_INTERVAL = 10000;
+constexpr int TIME_CHECK_INTERVAL = 10000; // nodes entered by pvs
 constexpr int TIME_LIMIT_DEFAULT = 5000; // ms
 
 //============================================================

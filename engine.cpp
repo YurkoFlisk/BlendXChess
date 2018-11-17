@@ -432,7 +432,7 @@ Score Engine::SEE(Square sq, Side by)
 	movePiece(from, sq);
 	const Score value = std::max(0, ptWeight[getPieceType(capt)] - SEE(sq, opposite(by)));
 	movePiece(sq, from);
-	putPiece(sq, getPieceColor(capt), getPieceType(capt));
+	putPiece(sq, getPieceSide(capt), getPieceType(capt));
 	return value;
 }
 
@@ -447,7 +447,7 @@ Score Engine::SEECapture(Square from, Square to, Side by)
 	movePiece(from, to);
 	const Score value = ptWeight[getPieceType(capt)] - SEE(to, opposite(by));
 	movePiece(to, from);
-	putPiece(to, getPieceColor(capt), getPieceType(capt));
+	putPiece(to, getPieceSide(capt), getPieceType(capt));
 	return value;
 }
 

@@ -224,7 +224,7 @@ void Position::revealPawnMoves(Bitboard destBB, Square direction, MoveList& move
 	{
 		const Square to = popLSB(destBB), from = to - direction;
 		assert(board[from] == TURN_PAWN);
-		assert(getPieceColor(board[to]) == (direction == FORWARD ? NULL_COLOR : opposite(TURN)));
+		assert(getPieceSide(board[to]) == (direction == FORWARD ? NULL_COLOR : opposite(TURN)));
 		if (TURN == WHITE ? to > Sq::H7 : to < Sq::A2)
 			for (int promIdx = 0; promIdx < 2; ++promIdx)
 				addMoveIfSuitable<TURN, LEGAL>(Move(from, to, MT_PROMOTION, promPieceType[promIdx]), moves);
@@ -244,8 +244,8 @@ void Position::revealMoves(Square from, Bitboard attackBB, MoveList& moves)
 	while (attackBB)
 	{
 		const Square to = popLSB(attackBB);
-		assert(getPieceColor(board[from]) == TURN);
-		assert(getPieceColor(board[to]) != TURN);
+		assert(getPieceSide(board[from]) == TURN);
+		assert(getPieceSide(board[to]) != TURN);
 		addMoveIfSuitable<TURN, LEGAL>(Move(from, to), moves);
 	}
 }
@@ -289,7 +289,7 @@ void Position::generatePawnMoves(MoveList& moves)
 		while (destBB)
 		{
 			const Square to = popLSB(destBB);
-			assert(getPieceColor(board[to]) == NULL_COLOR);
+			assert(getPieceSide(board[to]) == NULL_COLOR);
 			addMoveIfSuitable<TURN, LEGAL>(Move(to - (FORWARD + FORWARD), to), moves);
 		}
 	}
@@ -479,7 +479,7 @@ void Position::writePosition(std::ostream& ostr)
 				consecutiveEmpty = 0;
 			}
 			char cur_ch = pieceTypeToFEN(getPieceType(curPiece));
-			if (getPieceColor(curPiece) == BLACK)
+			if (getPieceSide(curPiece) == BLACK)
 				cur_ch = tolower(cur_ch);
 		}
 		if (consecutiveEmpty)

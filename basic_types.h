@@ -365,7 +365,7 @@ constexpr inline PieceType getPieceType(Piece pc) noexcept
 	return PieceType(pc & 7);
 }
 
-constexpr inline Side getPieceColor(Piece pc) noexcept
+constexpr inline Side getPieceSide(Piece pc) noexcept
 {
 	return pc == PIECE_NULL ? NULL_COLOR : Side(pc >> 3);
 }
@@ -615,7 +615,7 @@ public:
 	}
 	constexpr inline CastlingSide getCastlingSide(void) const noexcept
 	{
-		return getTo().getFile() == 2 ? OOO : OO;
+		return getTo().getFile() == fileFromAN('c') ? OOO : OO;
 	}
 	inline std::string getCastlingSideAN(void) const
 	{

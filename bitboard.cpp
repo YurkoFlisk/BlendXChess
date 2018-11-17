@@ -4,6 +4,7 @@
 //============================================================
 
 #include "bitboard.h"
+#include <intrin.h>
 #include <cassert>
 #include <random>
 
@@ -106,7 +107,13 @@ int countSet(Bitboard bb)
 //============================================================
 Square getLSB(Bitboard bb)
 {
-	Square lsb = Sq::A1;
+	long lsb;
+#if defined _MSC_VER
+	_BitScanForward64(reinterpret_cast<unsigned long*>(&lsb), bb);
+#elif defined __GNUG__
+	return __builtin_ctzll(bb);
+#else
+	lsb = 0;
 	// Binary search
 	if ((bb & 0xffffffff) == 0)
 		lsb += Square(32), bb >>= 32;
@@ -120,6 +127,7 @@ Square getLSB(Bitboard bb)
 		lsb += Square(2), bb >>= 2;
 	if ((bb & 0x1) == 0)
 		++lsb;
+#endif
 	return lsb;
 }
 
@@ -128,23 +136,9 @@ Square getLSB(Bitboard bb)
 //============================================================
 Square popLSB(Bitboard& bb)
 {
-	Bitboard b = bb;
-	Square lsb = Sq::A1;
-	// Binary search
-	if ((b & 0xffffffff) == 0)
-		lsb += Square(32), b >>= 32;
-	if ((b & 0xffff) == 0)
-		lsb += Square(16), b >>= 16;
-	if ((b & 0xff) == 0)
-		lsb += Square(8), b >>= 8;
-	if ((b & 0xf) == 0)
-		lsb += Square(4), b >>= 4;
-	if ((b & 0x3) == 0)
-		lsb += Square(2), b >>= 2;
-	if ((b & 0x1) == 0)
-		++lsb;
+	const long lsbIdx = getLSB(bb);
 	bb &= bb - 1;
-	return lsb;
+	return lsbIdx;
 }
 
 //============================================================
@@ -154,7 +148,7 @@ Square popLSB(Bitboard& bb)
 Bitboard lineAttacks(Square from, Bitboard relOcc, const Square dir[4])
 {
 	Bitboard attacks = 0;
-	for (int8_t di = 0; di < 4; ++di)
+	for (int di = 0; di < 4; ++di)
 		for (Square to = from + dir[di]; to.isValid() &&
 			distance(to, to - dir[di]) <= 2; to += dir[di])
 		{

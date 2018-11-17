@@ -26,7 +26,7 @@ struct PositionInfo
 	Key keyZobrist; // Zobrist key of the position
 };
 
-inline bool operator!=(PositionInfo p1, PositionInfo p2)
+constexpr inline bool operator!=(PositionInfo p1, PositionInfo p2)
 {
 	return p1.justCaptured != p2.justCaptured || p1.epSquare != p2.epSquare
 		|| p1.rule50 != p2.rule50 || p1.castlingRight != p2.castlingRight;
@@ -177,7 +177,7 @@ inline void Position::putPiece(Square sq, Side c, PieceType pt)
 
 inline void Position::movePiece(Square from, Square to)
 {
-	const Side c = getPieceColor(board[from]);
+	const Side c = getPieceSide(board[from]);
 	const PieceType pt = getPieceType(board[from]);
 	const Bitboard fromToBB = bbSquare[from] ^ bbSquare[to];
 	assert(pt != PT_NULL);
@@ -194,7 +194,7 @@ inline void Position::movePiece(Square from, Square to)
 
 inline void Position::removePiece(Square sq)
 {
-	const Side c = getPieceColor(board[sq]);
+	const Side c = getPieceSide(board[sq]);
 	const PieceType pt = getPieceType(board[sq]);
 	assert(pt != PT_NULL);
 	colorBB[c] ^= bbSquare[sq];
