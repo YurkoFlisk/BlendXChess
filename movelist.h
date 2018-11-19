@@ -38,9 +38,10 @@ public:
 	inline void reset(void);
 	inline void clear(void);
 	// Add a move to the list
-	void add(Move, Score = SCORE_ZERO);
+	void add(Move, Score);
+	void add(Move);
 	// Get next move (in the order of moves array, so we should sort moves before calling this function)
-	Move getNext(void);
+	MLNode getNext(void);
 	// Get next best move (finds it among the rest ones, meaning that
 	// it should be used when moves array is not sorted before)
 	Move getNextBest(void);

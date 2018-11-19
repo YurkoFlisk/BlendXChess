@@ -25,6 +25,8 @@ class Engine
 	: public Position
 {
 public:
+	static constexpr Score MS_TT_BONUS = 15000;
+	static constexpr Score MS_CAPTURE_BONUS = 3500;
 	typedef std::list<Move> KillerList;
 	// Constructor
 	Engine(void);
@@ -69,6 +71,8 @@ protected:
 		// Move in SAN format (we store it here because it is easier than build it when needed in writeGame method)
 		std::string moveSAN;
 	};
+	// Whether the move is a capture
+	inline bool isCaptureMove(Move) const;
 	// Helpers for ply-adjustment of scores (mate ones) when (extracted from)/(inserted to) a transposition table
 	inline Score scoreToTT(Score) const;
 	inline Score scoreFromTT(Score) const;
@@ -83,6 +87,8 @@ protected:
 	Score SEECapture(Square, Square, Side);
 	// Quiescent search
 	Score quiescentSearch(Score, Score);
+	// Move scoring
+	void moveScore(MoveList, Move);
 	// Transposition table
 	TranspositionTable transpositionTable;
 	// Killer moves
@@ -109,6 +115,11 @@ protected:
 //============================================================
 // Implementation of inline functions
 //============================================================
+
+inline bool Engine::isCaptureMove(Move move) const
+{
+	return board[move.getTo()] != Sq::NONE;
+}
 
 inline Score Engine::scoreToTT(Score score) const
 {

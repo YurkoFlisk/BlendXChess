@@ -242,10 +242,10 @@ inline void Position::generateLegalMovesEx(MoveList& moves)
 {
 	generateLegalMoves<MG_TYPE>(moves);
 	Move move;
-	while ((move = moves.getNext()) != MOVE_NONE)
+	while ((move = moves.getNext().move) != MOVE_NONE)
 		if (move.getType() == MT_PROMOTION
 			&& move.getPromotion() == QUEEN) // This condition is true only once for each promotion square
-		{
+		{ // Score is irrelevant, thus omitted
 			moves.add(Move(move.getFrom(), move.getTo(), MT_PROMOTION, BISHOP));
 			moves.add(Move(move.getFrom(), move.getTo(), MT_PROMOTION, ROOK));
 		}
@@ -263,14 +263,15 @@ inline void Position::addMoveIfSuitable(Move move, MoveList& moves)
 		// A pseudolegal move is legal iff the king is not under attack when it is performed
 		doMove(move);
 		// After doMove, turn has changed until undoMove, so it is critical that in the next two lines we use TURN
+		// Score is set in move scoring function of Engine class, thus omitted
 		if (!isAttacked(pieceSq[TURN][KING][0], opposite(TURN)))
-			moves.add(move, history[move.getFrom()][move.getTo()]);
+			moves.add(move);
 		// Restore to a previous state
 		undoMove(move);
 	}
 	// If we are looking for pseudolegal moves, don't check anything, as we already know that move is pseudolegal
 	else
-		moves.add(move, history[move.getFrom()][move.getTo()]);
+		moves.add(move);
 }
 
 #endif

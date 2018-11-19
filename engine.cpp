@@ -69,7 +69,7 @@ bool Engine::DoMove(Move move)
 	generateLegalMovesEx(legalMoves);
 	bool found = false;
 	// Check whether given move is among legal ones
-	while ((legalMove = legalMoves.getNext()) != MOVE_NONE)
+	while ((legalMove = legalMoves.getNext().move) != MOVE_NONE)
 		if (move == legalMove)
 		{
 			found = true;
@@ -185,7 +185,7 @@ int Engine::perft(Depth depth)
 	Move move;
 	MoveList moveList;
 	generatePseudolegalMoves(moveList);
-	while ((move = moveList.getNext()) != MOVE_NONE)
+	while ((move = moveList.getNext().move) != MOVE_NONE)
 	{
 		doMove(move);
 		if (isAttacked(pieceSq[opposite(turn)][KING][0], turn))
@@ -283,7 +283,7 @@ Move Engine::moveFromSAN(const std::string& moveSAN)
 	// Now find a legal move corresponding to the parsed information
 	Move legalMove;
 	bool found = false;
-	while ((legalMove = legalMoves.getNext()) != MOVE_NONE)
+	while ((legalMove = legalMoves.getNext().move) != MOVE_NONE)
 		if ((move == MOVE_NONE || move == legalMove) &&
 			(fromFile == -1 || fromFile == legalMove.getFrom().getFile()) &&
 			(fromRank == -1 || fromRank == legalMove.getFrom().getRank()) &&
@@ -311,7 +311,7 @@ std::string Engine::moveToSAN(Move move)
 	const MoveType moveType = move.getType();
 	const PieceType pieceType = getPieceType(board[from]);
 	bool found = false, fileUncertainty = false, rankUncertainty = false;
-	while ((legalMove = moveList.getNext()) != MOVE_NONE)
+	while ((legalMove = moveList.getNext().move) != MOVE_NONE)
 	{
 		const Square lmFrom = legalMove.getFrom(), lmTo = legalMove.getTo();
 		if (move == legalMove)
@@ -472,13 +472,13 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 	// Generate capture (but, if we are in check, all evasions) list
 	MoveList moveList;
 	generateLegalMoves<MG_CAPTURES>(moveList);
-	moveList.sort();
 	// If we are in check and no evasion was found, we are lost
 	if (moveList.empty())
 		return isInCheck() ? SCORE_LOSE + searchPly : standPat;
+	moveList.sort();
 	// Test every capture and choose the best one
 	Move move;
-	while ((move = moveList.getNext()) != MOVE_NONE)
+	while ((move = moveList.getNext().move) != MOVE_NONE)
 	{
 		// Delta pruning
 		if (standPat + ptWeight[getPieceType(board[move.getTo()])] + DELTA_MARGIN < alpha)
@@ -504,6 +504,28 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 	}
 	// Return alpha
 	return alpha;
+}
+
+//============================================================
+// Scores each move from moveList. Second parameter - move from TT
+//============================================================
+void Engine::moveScore(MoveList moveList, Move ttMove)
+{
+	for (int i = 0; i < moveList.getMoveCnt(); ++i)
+	{
+		MLNode& moveNode = moveList.getNext();
+		if (moveNode.move == MOVE_NONE)
+			break;
+		if (moveNode.move == ttMove)
+		{
+			moveNode.score = MS_TT_BONUS;
+			continue;
+		}
+		moveNode.score = history[moveNode.move.getFrom()][moveNode.move.getTo()];
+		if (isCaptureMove(moveNode.move))
+			moveNode.score += MS_CAPTURE_BONUS;
+	}
+	moveList.reset();
 }
 
 //============================================================
@@ -552,7 +574,7 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 			// Test every move and choose the best one
 			++searchPly;
 			bool pvSearch = true;
-			while ((move = moveList.getNext()) != MOVE_NONE)
+			while ((move = moveList.getNext().move) != MOVE_NONE)
 			{
 				// Do move
 				doMove(move);
@@ -587,7 +609,7 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 			// Timeout check
 			if (timeout)
 				break;
-			// Reset move list(so we can traverse it again)
+			// Reset move list (so we can traverse it again)
 			moveList.reset();
 			// If bestScore is inside the window, it is final score
 			if (alpha < curBestScore && curBestScore < beta)
@@ -669,7 +691,7 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 	Score bestScore = SCORE_LOSE;
 	bool anyLegalMove = false, pvSearch = true;
 	++searchPly;
-	while ((move = moveList.getNext()) != MOVE_NONE)
+	while ((move = moveList.getNext().move) != MOVE_NONE)
 	{
 		// Do move
 		doMove(move);

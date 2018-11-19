@@ -16,6 +16,12 @@ MoveList::MoveList(void)
 //============================================================
 // Add a move to the list
 //============================================================
+void MoveList::add(Move move)
+{
+	assert(moveCnt < MAX_MOVECNT);
+	moves[moveCnt++].move = move;
+}
+
 void MoveList::add(Move move, Score score)
 {
 	assert(moveCnt < MAX_MOVECNT);
@@ -26,9 +32,9 @@ void MoveList::add(Move move, Score score)
 //============================================================
 // Get next move (in the order specified by move scores)
 //============================================================
-Move MoveList::getNext(void)
+MLNode MoveList::getNext(void)
 {
-	return moveIdx < moveCnt ? moves[moveIdx++].move : MOVE_NONE;
+	return moveIdx < moveCnt ? moves[moveIdx++] : MLNode {MOVE_NONE, SCORE_ZERO};
 }
 
 //============================================================
