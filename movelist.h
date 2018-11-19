@@ -46,7 +46,7 @@ public:
 	// it should be used when moves array is not sorted before)
 	Move getNextBest(void);
 	// Sort the move list
-	void sort(Move = MOVE_NONE);
+	void sort(void);
 private:
 	int moveCnt; // Move count
 	int moveIdx; // Next move index

@@ -73,6 +73,8 @@ protected:
 	};
 	// Whether the move is a capture
 	inline bool isCaptureMove(Move) const;
+	// (Re-)score moves and sort
+	inline void sortMoves(MoveList&, Move = MOVE_NONE);
 	// Helpers for ply-adjustment of scores (mate ones) when (extracted from)/(inserted to) a transposition table
 	inline Score scoreToTT(Score) const;
 	inline Score scoreFromTT(Score) const;
@@ -88,7 +90,7 @@ protected:
 	// Quiescent search
 	Score quiescentSearch(Score, Score);
 	// Move scoring
-	void moveScore(MoveList, Move);
+	void scoreMoves(MoveList&, Move);
 	// Transposition table
 	TranspositionTable transpositionTable;
 	// Killer moves
@@ -119,6 +121,13 @@ protected:
 inline bool Engine::isCaptureMove(Move move) const
 {
 	return board[move.getTo()] != Sq::NONE;
+}
+
+inline void Engine::sortMoves(MoveList& ml, Move ttMove)
+{
+	ml.reset();
+	scoreMoves(ml, ttMove);
+	ml.sort();
 }
 
 inline Score Engine::scoreToTT(Score score) const

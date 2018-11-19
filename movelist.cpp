@@ -55,8 +55,8 @@ Move MoveList::getNextBest(void)
 //============================================================
 // Sort the move list
 //============================================================
-void MoveList::sort(Move ttMove)
+void MoveList::sort(void)
 {
-	std::sort(moves, moves + moveCnt, [ttMove](const MLNode& ml1,
-		const MLNode& ml2) { return ml1.move == ttMove || (ml2.move != ttMove && ml1.score > ml2.score); });
+	std::sort(moves, moves + moveCnt, [](const MLNode& ml1,
+		const MLNode& ml2) { return ml1.score > ml2.score; });
 }

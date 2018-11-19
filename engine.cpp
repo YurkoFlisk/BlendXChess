@@ -475,7 +475,7 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 	// If we are in check and no evasion was found, we are lost
 	if (moveList.empty())
 		return isInCheck() ? SCORE_LOSE + searchPly : standPat;
-	moveList.sort();
+	sortMoves(moveList);
 	// Test every capture and choose the best one
 	Move move;
 	while ((move = moveList.getNext().move) != MOVE_NONE)
@@ -509,7 +509,7 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 //============================================================
 // Scores each move from moveList. Second parameter - move from TT
 //============================================================
-void Engine::moveScore(MoveList moveList, Move ttMove)
+void Engine::scoreMoves(MoveList& moveList, Move ttMove)
 {
 	for (int i = 0; i < moveList.getMoveCnt(); ++i)
 	{
@@ -557,12 +557,11 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 	timeout = false;
 	// Generate possible moves
 	MoveList moveList;
+	generateLegalMoves(moveList);
 	// Iterative deepening
 	for (Depth searchDepth = 1; searchDepth <= depth; ++searchDepth)
 	{
-		moveList.clear();
-		generateLegalMoves(moveList);
-		moveList.sort(bestMove);
+		sortMoves(moveList, bestMove);
 		// Best move and score of current iteration
 		int curBestScore(SCORE_ZERO);
 		Move curBestMove;
@@ -686,7 +685,7 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 	if (moveList.empty())
 		return isInCheck() ? SCORE_LOSE + searchPly : SCORE_ZERO;
 	// Sort move list according to their move ordering scores
-	moveList.sort(ttMove);
+	sortMoves(moveList, ttMove);
 	// Test every move and choose the best one
 	Score bestScore = SCORE_LOSE;
 	bool anyLegalMove = false, pvSearch = true;
