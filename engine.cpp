@@ -525,8 +525,16 @@ void Engine::scoreMoves(MoveList& moveList, Move ttMove)
 			continue;
 		}
 		moveNode.score = history[moveNode.move.getFrom()][moveNode.move.getTo()];
-		/*if (isCaptureMove(moveNode.move))
-			moveNode.score += MS_CAPTURE_BONUS;*/
+		if (isCaptureMove(moveNode.move))
+		{
+			moveNode.score += MS_CAPTURE_BONUS;
+			for (auto killerMove : killers[searchPly])
+				if (moveNode.move == killerMove)
+				{
+					moveNode.score += MS_KILLER_BONUS;
+					break;
+				}
+		}
 	}
 	moveList.reset();
 }
@@ -555,6 +563,8 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 	bestMove = MOVE_NONE;
 	int bestScore(SCORE_ZERO);
 	Move move;
+	for (int i = 0; i <= depth; ++i)
+		killers[i].clear();
 	// Setup time management
 	startTime = std::chrono::high_resolution_clock::now();
 	timeCheckCounter = 0;
@@ -602,11 +612,13 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 					pvSearch = false;
 					curBestScore = score;
 					curBestMove = move;
-					// Update history
-					history[move.getFrom()][move.getTo()] += searchDepth * searchDepth;
 					// If beta-cutoff occurs, stop search
 					if (curBestScore >= beta)
+					{
+						// Don't update history and killers while in aspiration window
+						// history[move.getFrom()][move.getTo()] += searchDepth * searchDepth;
 						break;
+					}
 				}
 			}
 			--searchPly;
@@ -631,6 +643,15 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 		bestMove = curBestMove;
 		bestScore = curBestScore;
 		resDepth = searchDepth;
+		// Update history
+		if (isCaptureMove(bestMove))
+		{
+			killers[searchPly].push_front(move);
+			if (killers[searchPly].size() > MAX_KILLERS_CNT)
+				killers[searchPly].pop_back();
+		}
+		else
+			history[bestMove.getFrom()][bestMove.getTo()] += searchDepth * searchDepth;
 	}
 	// Set nodes count and return position score
 	nodes = lastSearchNodes;
@@ -734,17 +755,16 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 				// Beta-cutoff
 				if (alpha >= beta)
 				{
-					// Update history table
-					history[move.getFrom()][move.getTo()] += depth * depth;
 					// Update killers
-					if (true)
+					if (isCaptureMove(move))
 					{
-						killers[searchPly].push_front(move);
-						if (killers[searchPly].size() > MAX_KILLERS_CNT)
-							killers[searchPly].pop_back();
+						killers[searchPly - 1].push_front(move);
+						if (killers[searchPly - 1].size() > MAX_KILLERS_CNT)
+							killers[searchPly - 1].pop_back();
 					}
-					// Cutoff
-					break;
+					else // Update history table
+						history[move.getFrom()][move.getTo()] += depth * depth;
+					break; // Cutoff
 				}
 			}
 		}

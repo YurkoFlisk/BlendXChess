@@ -27,6 +27,7 @@ class Engine
 public:
 	static constexpr Score MS_TT_BONUS = 15000;
 	static constexpr Score MS_CAPTURE_BONUS = 3500;
+	static constexpr Score MS_KILLER_BONUS = 1500; // Over MS_CAPTURE_BONUS (see scoreMoves)
 	typedef std::list<Move> KillerList;
 	// Constructor
 	Engine(void);
