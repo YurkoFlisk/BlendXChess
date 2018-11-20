@@ -24,7 +24,7 @@ int main(void)
 	Move cpuMove;
 	string strMove;
 	eng.reset();
-	for (int i = 5; i <= 6; ++i)
+	for (int i = 5; i <= 5; ++i)
 	{
 		auto st = chrono::high_resolution_clock::now();
 		cout << eng.perft(i);

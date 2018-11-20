@@ -242,13 +242,16 @@ inline void Position::generateLegalMovesEx(MoveList& moves)
 {
 	generateLegalMoves<MG_TYPE>(moves);
 	Move move;
-	while ((move = moves.getNext().move) != MOVE_NONE)
+	for (int moveIdx = 0; moveIdx < moves.count(); ++moveIdx)
+	{
+		move = moves[moveIdx].move;
 		if (move.getType() == MT_PROMOTION
 			&& move.getPromotion() == QUEEN) // This condition is true only once for each promotion square
 		{ // Score is irrelevant, thus omitted
 			moves.add(Move(move.getFrom(), move.getTo(), MT_PROMOTION, BISHOP));
 			moves.add(Move(move.getFrom(), move.getTo(), MT_PROMOTION, ROOK));
 		}
+	}
 	moves.reset();
 }
 

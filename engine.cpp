@@ -63,14 +63,13 @@ void Engine::updateGameState(void)
 //============================================================
 bool Engine::DoMove(Move move)
 {
-	Move legalMove;
 	// Generate legal moves
 	MoveList legalMoves;
 	generateLegalMovesEx(legalMoves);
 	bool found = false;
 	// Check whether given move is among legal ones
-	while ((legalMove = legalMoves.getNext().move) != MOVE_NONE)
-		if (move == legalMove)
+	for (int i = 0; i < legalMoves.count(); ++i)
+		if (legalMoves[i].move == move)
 		{
 			found = true;
 			break;
@@ -185,8 +184,9 @@ int Engine::perft(Depth depth)
 	Move move;
 	MoveList moveList;
 	generatePseudolegalMoves(moveList);
-	while ((move = moveList.getNext().move) != MOVE_NONE)
+	for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
 	{
+		move = moveList[moveIdx].move;
 		doMove(move);
 		if (isAttacked(pieceSq[opposite(turn)][KING][0], turn))
 		{
@@ -283,7 +283,9 @@ Move Engine::moveFromSAN(const std::string& moveSAN)
 	// Now find a legal move corresponding to the parsed information
 	Move legalMove;
 	bool found = false;
-	while ((legalMove = legalMoves.getNext().move) != MOVE_NONE)
+	for (int i = 0; i < legalMoves.count(); ++i)
+	{
+		legalMove = legalMoves[i].move;
 		if ((move == MOVE_NONE || move == legalMove) &&
 			(fromFile == -1 || fromFile == legalMove.getFrom().getFile()) &&
 			(fromRank == -1 || fromRank == legalMove.getFrom().getRank()) &&
@@ -294,6 +296,7 @@ Move Engine::moveFromSAN(const std::string& moveSAN)
 				throw std::runtime_error("Given move information is ambiguous");
 			else
 				found = true, move = legalMove;
+	}
 	if (!found)
 		throw std::runtime_error("Move is illegal");
 	return move;
@@ -311,8 +314,9 @@ std::string Engine::moveToSAN(Move move)
 	const MoveType moveType = move.getType();
 	const PieceType pieceType = getPieceType(board[from]);
 	bool found = false, fileUncertainty = false, rankUncertainty = false;
-	while ((legalMove = moveList.getNext().move) != MOVE_NONE)
+	for (int i = 0; i < moveList.count(); ++i)
 	{
+		legalMove = moveList[i].move;
 		const Square lmFrom = legalMove.getFrom(), lmTo = legalMove.getTo();
 		if (move == legalMove)
 			found = true;
@@ -478,8 +482,9 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 	sortMoves(moveList);
 	// Test every capture and choose the best one
 	Move move;
-	while ((move = moveList.getNext().move) != MOVE_NONE)
+	for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
 	{
+		move = moveList[moveIdx].move;
 		// Delta pruning
 		if (standPat + ptWeight[getPieceType(board[move.getTo()])] + DELTA_MARGIN < alpha)
 			continue;
@@ -511,19 +516,17 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 //============================================================
 void Engine::scoreMoves(MoveList& moveList, Move ttMove)
 {
-	for (int i = 0; i < moveList.getMoveCnt(); ++i)
+	for (int i = 0; i < moveList.count(); ++i)
 	{
-		MLNode& moveNode = moveList.getNext();
-		if (moveNode.move == MOVE_NONE)
-			break;
+		MLNode& moveNode = moveList[i];
 		if (moveNode.move == ttMove)
 		{
 			moveNode.score = MS_TT_BONUS;
 			continue;
 		}
 		moveNode.score = history[moveNode.move.getFrom()][moveNode.move.getTo()];
-		if (isCaptureMove(moveNode.move))
-			moveNode.score += MS_CAPTURE_BONUS;
+		/*if (isCaptureMove(moveNode.move))
+			moveNode.score += MS_CAPTURE_BONUS;*/
 	}
 	moveList.reset();
 }
@@ -549,6 +552,7 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 	ht = 0;
 	lastSearchNodes = 0;
 	searchPly = 0;
+	bestMove = MOVE_NONE;
 	int bestScore(SCORE_ZERO);
 	Move move;
 	// Setup time management
@@ -573,8 +577,9 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 			// Test every move and choose the best one
 			++searchPly;
 			bool pvSearch = true;
-			while ((move = moveList.getNext().move) != MOVE_NONE)
+			for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
 			{
+				move = moveList[moveIdx].move;
 				// Do move
 				doMove(move);
 				// Principal variation search
@@ -690,8 +695,9 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 	Score bestScore = SCORE_LOSE;
 	bool anyLegalMove = false, pvSearch = true;
 	++searchPly;
-	while ((move = moveList.getNext().move) != MOVE_NONE)
+	for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
 	{
+		move = moveList[moveIdx].move;
 		// Do move
 		doMove(move);
 		// Legality check

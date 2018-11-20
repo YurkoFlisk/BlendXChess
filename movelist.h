@@ -32,7 +32,7 @@ public:
 	// Constructor
 	MoveList(void);
 	// Getters
-	inline int getMoveCnt(void) const;
+	inline int count(void) const;
 	// Inline functions
 	inline bool empty(void) const;
 	inline void reset(void);
@@ -41,15 +41,17 @@ public:
 	void add(Move, Score);
 	void add(Move);
 	// Get next move (in the order of moves array, so we should sort moves before calling this function)
-	MLNode getNext(void);
+	// MLNode getNext(void);
 	// Get next best move (finds it among the rest ones, meaning that
 	// it should be used when moves array is not sorted before)
 	Move getNextBest(void);
 	// Sort the move list
 	void sort(void);
+	// Get the move by index
+	MLNode& operator[](int);
 private:
 	int moveCnt; // Move count
-	int moveIdx; // Next move index
+	int moveIdx; // Next move index (for getNextBest type of move acquisition)
 	MLNode moves[MAX_MOVECNT]; // The whole move list
 };
 
@@ -57,7 +59,7 @@ private:
 // Implementation of inline functions
 //============================================================
 
-inline int MoveList::getMoveCnt(void) const
+inline int MoveList::count(void) const
 {
 	return moveCnt;
 }

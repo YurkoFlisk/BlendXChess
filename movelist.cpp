@@ -32,13 +32,13 @@ void MoveList::add(Move move, Score score)
 //============================================================
 // Get next move (in the order specified by move scores)
 //============================================================
-MLNode MoveList::getNext(void)
-{
-	return moveIdx < moveCnt ? moves[moveIdx++] : MLNode {MOVE_NONE, SCORE_ZERO};
-}
+//MLNode MoveList::getNext(void)
+//{
+//	return moveIdx < moveCnt ? moves[moveIdx++] : MLNode {MOVE_NONE, SCORE_ZERO};
+//}
 
 //============================================================
-// Get next best move(finds it among the rest ones, meaning that
+// Get next best move (finds it among the rest ones, meaning that
 // it should be used when moves array is not sorted before)
 //============================================================
 Move MoveList::getNextBest(void)
@@ -59,4 +59,13 @@ void MoveList::sort(void)
 {
 	std::sort(moves, moves + moveCnt, [](const MLNode& ml1,
 		const MLNode& ml2) { return ml1.score > ml2.score; });
+}
+
+//============================================================
+// Access the move by index
+//============================================================
+MLNode& MoveList::operator[](int idx)
+{
+	assert(0 <= idx && idx < moveCnt);
+	return moves[idx];
 }
