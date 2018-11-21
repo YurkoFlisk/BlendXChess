@@ -20,7 +20,7 @@ int main(void)
 	char userWhite;
 	Side userTurn;
 	Depth resDepth, depth;
-	int nodes, timeLimit, inDepth;
+	int nodes, timeLimit, inDepth, ttHits;
 	Move cpuMove;
 	string strMove;
 	eng.reset();
@@ -63,7 +63,7 @@ int main(void)
 		else
 		{
 			auto st = chrono::high_resolution_clock::now();
-			const Score score = eng.AIMove(nodes, cpuMove, resDepth, depth);
+			const Score score = eng.AIMove(cpuMove, depth, resDepth, nodes, ttHits);
 			auto en = chrono::high_resolution_clock::now();
 			eng.DoMove(cpuMove);
 			if (cpuMove.getType() == MT_CASTLING)
@@ -81,7 +81,7 @@ int main(void)
 			cout << ' ' << nodes << " nodes searched in "
 				<< chrono::duration_cast<chrono::milliseconds>(en - st).count()
 				<< " ms to depth " << (int)resDepth << ". The score is " << score << ". "
-				<< fr << " free slots in TT. " << ht << " hits made." << endl;
+				<< fr << " free slots in TT. " << ttHits << " hits made." << endl;
 		}
 		if (eng.getGameState() != GS_ACTIVE)
 		{

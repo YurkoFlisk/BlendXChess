@@ -13,14 +13,22 @@
 #include "position.h"
 #include "transtable.h"
 
+#if defined(_DEBUG) | defined(DEBUG)
+constexpr bool SEARCH_NODES_COUNT_ENABLED = true;
+constexpr bool TT_HITS_COUNT_ENABLED = true;
 constexpr bool TIME_CHECK_ENABLED = true;
+#else
+constexpr bool SEARCH_NODES_COUNT_ENABLED = true;
+constexpr bool TT_HITS_COUNT_ENABLED = true;
+constexpr bool TIME_CHECK_ENABLED = true;
+#endif
 constexpr int TIME_CHECK_INTERVAL = 10000; // nodes entered by pvs
 constexpr int TIME_LIMIT_DEFAULT = 5000; // ms
 
 //============================================================
 // Main engine class
 //============================================================
-extern int ht;
+
 class Engine
 	: public Position
 {
@@ -53,7 +61,7 @@ public:
 	bool UndoMove(void);
 	// Main AI function
 	// Returns position score and outputs the best move to the reference parameter
-	Score AIMove(int&, Move&, Depth&, Depth = DEPTH_MAX);
+	Score AIMove(Move&, Depth = DEPTH_MAX, Depth& = _dummyDepth, int& = _dummyInt, int& = _dummyInt);
 	// Performance test
 	int perft(Depth);
 	// Convert a move from SAN notation to Move. It should be valid in current position
@@ -107,12 +115,17 @@ protected:
 	int timeCheckCounter;
 	// Timelimit of AI thinking
 	int timeLimit;
+	// Count of TT hits
+	int ttHits;
 	// Whether search already timed out
 	bool timeout;
 	// Start time of AI thinking in AIMove function
 	std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
 	// Game history, which consists of all moves made from the starting position
 	std::vector<GHRecord> gameHistory;
+private:
+	static Depth _dummyDepth;
+	static int _dummyInt;
 };
 
 //============================================================

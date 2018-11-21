@@ -463,7 +463,8 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 {
 	static constexpr Score DELTA_MARGIN = 180;
 	// Increment search nodes count
-	++lastSearchNodes;
+	if constexpr (SEARCH_NODES_COUNT_ENABLED)
+		++lastSearchNodes;
 	// Get stand-pat score
 	const Score standPat = evaluate();
 	// We assume there's always a move that will increase score, so if
@@ -542,8 +543,10 @@ void Engine::scoreMoves(MoveList& moveList, Move ttMove)
 //============================================================
 // Main AI function
 // Returns position score and outputs the best move to the reference parameter
+// Returns optionally resultant search depth, traversed nodes (including from
+// quiscent search, transposition table hits) through reference parameters
 //============================================================
-Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
+Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, int& hits)
 {
 	nodes = 0;
 	// If game is not active, no search is possible
@@ -557,8 +560,10 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 			return (gameState == GS_WHITE_WIN) == (turn == WHITE) ? SCORE_WIN : SCORE_LOSE;
 	}
 	// Misc
-	ht = 0;
-	lastSearchNodes = 0;
+	if constexpr (TT_HITS_COUNT_ENABLED)
+		ttHits = 0;
+	if constexpr (SEARCH_NODES_COUNT_ENABLED)
+		lastSearchNodes = 0;
 	searchPly = 0;
 	bestMove = MOVE_NONE;
 	int bestScore(SCORE_ZERO);
@@ -566,9 +571,12 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 	for (int i = 0; i <= depth; ++i)
 		killers[i].clear();
 	// Setup time management
-	startTime = std::chrono::high_resolution_clock::now();
-	timeCheckCounter = 0;
-	timeout = false;
+	if constexpr (TIME_CHECK_ENABLED)
+	{
+		startTime = std::chrono::high_resolution_clock::now();
+		timeCheckCounter = 0;
+		timeout = false;
+	}
 	// Generate possible moves
 	MoveList moveList;
 	generateLegalMoves(moveList);
@@ -653,11 +661,14 @@ Score Engine::AIMove(int& nodes, Move& bestMove, Depth& resDepth, Depth depth)
 		else
 			history[bestMove.getFrom()][bestMove.getTo()] += searchDepth * searchDepth;
 	}
-	// Set nodes count and return position score
-	nodes = lastSearchNodes;
+	// Set nodes count and transposition table hits and return position score
+	if constexpr (SEARCH_NODES_COUNT_ENABLED)
+		nodes = lastSearchNodes;
+	if constexpr (TT_HITS_COUNT_ENABLED)
+		hits = ttHits;
 	return bestScore;
 }
-int ht = 0;
+
 //============================================================
 // Internal AI logic (Principal Variation Search)
 // Get position score by searching with given depth
@@ -681,7 +692,8 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 	if (depth == DEPTH_ZERO)
 		return quiescentSearch(alpha, beta);
 	// Increment search nodes count
-	++lastSearchNodes;
+	if constexpr (SEARCH_NODES_COUNT_ENABLED)
+		++lastSearchNodes;
 	// Check for 50-rule draw
 	if (info.rule50 >= 100)
 		return SCORE_ZERO;
@@ -702,7 +714,8 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 				return alpha;
 		}
 		ttMove = ttEntry->move;
-		++ht;
+		if constexpr (TT_HITS_COUNT_ENABLED)
+			++ttHits;
 	}
 	// Generate possible moves
 	MoveList moveList;
