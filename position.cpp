@@ -102,13 +102,13 @@ Square Position::leastAttacker(Square sq, Side by) const
 //============================================================
 void Position::doMove(Move move)
 {
-	const Square from = move.getFrom(), to = move.getTo();
-	const MoveType type = move.getType();
+	const Square from = move.from(), to = move.to();
+	const MoveType type = move.type();
 	const PieceType from_pt = getPieceType(board[from]);
 	prevStates[gamePly] = info;
 	if (info.epSquare != Sq::NONE)
 	{
-		info.keyZobrist ^= ZobristEP[info.epSquare.getFile()];
+		info.keyZobrist ^= ZobristEP[info.epSquare.file()];
 		info.epSquare = Sq::NONE; // If it is present, it will be set later
 	}
 	info.justCaptured = (type == MT_EN_PASSANT ? PAWN : getPieceType(board[to]));
@@ -125,7 +125,7 @@ void Position::doMove(Move move)
 		if (abs(to - from) == 16)
 		{
 			info.epSquare = (from + to) >> 1;
-			info.keyZobrist ^= ZobristEP[info.epSquare.getFile()];
+			info.keyZobrist ^= ZobristEP[info.epSquare.file()];
 		}
 		info.rule50 = 0;
 	}
@@ -160,7 +160,7 @@ void Position::doMove(Move move)
 			info.castlingRight &= ~CR_BLACK_OO, info.keyZobrist ^= ZobristCR[CR_BLACK_OO];
 	if (type == MT_PROMOTION)
 	{
-		putPiece(to, turn, move.getPromotion());
+		putPiece(to, turn, move.promotion());
 		removePiece(from);
 	}
 	else
@@ -181,8 +181,8 @@ void Position::doMove(Move move)
 //============================================================
 void Position::undoMove(Move move)
 {
-	const Square from = move.getFrom(), to = move.getTo();
-	const MoveType type = move.getType();
+	const Square from = move.from(), to = move.to();
+	const MoveType type = move.type();
 	--gamePly;
 	turn = opposite(turn);
 	if (type == MT_PROMOTION)
@@ -273,9 +273,9 @@ void Position::generatePawnMoves(MoveList& moves)
 		{
 			assert(board[info.epSquare - FORWARD] == makePiece(opposite(TURN), PAWN));
 			Square from;
-			if (info.epSquare.getFile() != 7 && board[from = info.epSquare - LEFT_CAPT] == TURN_PAWN)
+			if (info.epSquare.file() != 7 && board[from = info.epSquare - LEFT_CAPT] == TURN_PAWN)
 				addMoveIfSuitable<TURN, LEGAL>(Move(from, info.epSquare, MT_EN_PASSANT), moves);
-			if (info.epSquare.getFile() != 0 && board[from = info.epSquare - RIGHT_CAPT] == TURN_PAWN)
+			if (info.epSquare.file() != 0 && board[from = info.epSquare - RIGHT_CAPT] == TURN_PAWN)
 				addMoveIfSuitable<TURN, LEGAL>(Move(from, info.epSquare, MT_EN_PASSANT), moves);
 		}
 	}
@@ -460,7 +460,7 @@ void Position::loadPosition(std::istream& istr)
 //============================================================
 // Write position to a given stream in FEN notation
 //============================================================
-void Position::writePosition(std::ostream& ostr)
+void Position::writePosition(std::ostream& ostr, bool omitCounters) const
 {
 	// Piece placement information
 	for (int rank = 7, consecutiveEmpty = 0; rank >= 0; --rank)
@@ -507,11 +507,14 @@ void Position::writePosition(std::ostream& ostr)
 	if (info.epSquare == Sq::NONE)
 		ostr << "- ";
 	else
-		ostr << info.epSquare.getFile() + 'a' << info.epSquare.getRank() << ' ';
-	// Halfmove counter (for 50 move draw rule) information
-	ostr << info.rule50 << ' ';
-	// Counter of full moves (starting at 1) information
-	ostr << gamePly / 2;
+		ostr << info.epSquare.file() + 'a' << info.epSquare.rank() << ' ';
+	if (!omitCounters)
+	{
+		// Halfmove counter (for 50 move draw rule) information
+		ostr << info.rule50 << ' ';
+		// Counter of full moves (starting at 1) information
+		ostr << gamePly / 2;
+	}
 }
 
 //============================================================

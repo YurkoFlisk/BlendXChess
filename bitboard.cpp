@@ -186,9 +186,9 @@ void initBB(void)
 	for (Side c = WHITE; c <= BLACK; ++c)
 		for (Square sq = A1, to; sq < H8; ++sq)
 		{
-			if (sq.getFile() != fileFromAN('a') && (to = sq + D_LU - (c << 4)).isValid())
+			if (sq.file() != fileFromAN('a') && (to = sq + D_LU - (c << 4)).isValid())
 				bbPawnAttack[c][sq] |= bbSquare[to];
-			if (sq.getFile() != fileFromAN('h') && (to = sq + D_RU - (c << 4)).isValid())
+			if (sq.file() != fileFromAN('h') && (to = sq + D_RU - (c << 4)).isValid())
 				bbPawnAttack[c][sq] |= bbSquare[to];
 		}
 	// Initialize bbKnightAttack and bbKingAttack
@@ -214,9 +214,9 @@ void initBB(void)
 	static constexpr Square
 		ROOK_DIR[4] = { D_UP, D_DOWN, D_LEFT, D_RIGHT },
 		BISHOP_DIR[4] = { D_LD, D_RD, D_RU, D_LU };
-	initMagics(ROOK_DIR, bbRank, bbFile, &Square::getRank, &Square::getFile,
+	initMagics(ROOK_DIR, bbRank, bbFile, &Square::rank, &Square::file,
 		mRookMagics);
-	initMagics(BISHOP_DIR, bbDiagonal, bbAntidiagonal, &Square::getDiagonal, &Square::getAntidiagonal,
+	initMagics(BISHOP_DIR, bbDiagonal, bbAntidiagonal, &Square::diagonal, &Square::antidiagonal,
 		mBishopMagics);
 }
 
@@ -236,7 +236,7 @@ void initMagics(const Square dir[4], const Bitboard bbLine1[], const Bitboard bb
 	{
 		// Border (we should carefully handle situations where rook is itself on border)
 		// It remains the same for bishops because 'and' changes don't affect them
-		bbBorder = ((BB_RANK_1 | BB_RANK_8) & ~bbRank[sq.getRank()]) | ((BB_FILE_A | BB_FILE_H) & ~bbFile[sq.getFile()]);
+		bbBorder = ((BB_RANK_1 | BB_RANK_8) & ~bbRank[sq.rank()]) | ((BB_FILE_A | BB_FILE_H) & ~bbFile[sq.file()]);
 		// Relative occupancy mask
 		mPieceMagics[sq].relOcc = (bbLine1[(sq.*getLine1)()] | bbLine2[(sq.*getLine2)()])
 			& ~bbSquare[sq] & ~bbBorder;

@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <list>
+#include <unordered_map>
 #include <chrono>
 #include "position.h"
 #include "transtable.h"
@@ -87,6 +88,10 @@ protected:
 	// Helpers for ply-adjustment of scores (mate ones) when (extracted from)/(inserted to) a transposition table
 	inline Score scoreToTT(Score) const;
 	inline Score scoreFromTT(Score) const;
+	// Whether position is draw by insufficient material
+	bool drawByMaterial(void) const;
+	// Whether position is threefold repeated
+	bool threefoldRepetitionDraw(void) const;
 	// Internal AI logic (Principal Variation Search)
 	// Get position score by searching with given depth
 	Score pvs(Depth, Score, Score);
@@ -123,6 +128,8 @@ protected:
 	std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
 	// Game history, which consists of all moves made from the starting position
 	std::vector<GHRecord> gameHistory;
+	// Position (stored in reduced FEN) repetition count, for handling threefold repetition draw rule
+	std::unordered_map<std::string, int> positionRepeats;
 private:
 	static Depth _dummyDepth;
 	static int _dummyInt;
@@ -134,7 +141,7 @@ private:
 
 inline bool Engine::isCaptureMove(Move move) const
 {
-	return board[move.getTo()] != Sq::NONE;
+	return board[move.to()] != Sq::NONE;
 }
 
 inline void Engine::sortMoves(MoveList& ml, Move ttMove)

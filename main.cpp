@@ -66,13 +66,13 @@ int main(void)
 			const Score score = eng.AIMove(cpuMove, depth, resDepth, nodes, ttHits);
 			auto en = chrono::high_resolution_clock::now();
 			eng.DoMove(cpuMove);
-			if (cpuMove.getType() == MT_CASTLING)
-				cout << (cpuMove.getTo().getFile() == fileFromAN('g') ? "O-O" : "O-O-O");
+			if (cpuMove.type() == MT_CASTLING)
+				cout << (cpuMove.to().file() == fileFromAN('g') ? "O-O" : "O-O-O");
 			else
 			{
-				cout << cpuMove.getFrom().toAN() << '-' << cpuMove.getTo().toAN();
-				if (cpuMove.getType() == MT_PROMOTION)
-					switch (cpuMove.getPromotion())
+				cout << cpuMove.from().toAN() << '-' << cpuMove.to().toAN();
+				if (cpuMove.type() == MT_PROMOTION)
+					switch (cpuMove.promotion())
 					{
 					case KNIGHT: cout << 'N'; break;
 					case QUEEN: cout << 'Q'; break;

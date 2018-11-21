@@ -62,8 +62,8 @@ public:
 	inline bool isInCheck(void) const;
 	// Load position from a given stream in FEN notation
 	void loadPosition(std::istream&);
-	// Write position to a given stream in FEN notation
-	void writePosition(std::ostream&);
+	// Write position to a given stream in FEN notation, possibly omitting half- and full-move counters
+	void writePosition(std::ostream&, bool = false) const;
 protected:
 	// Putting, moving and removing pieces
 	inline void putPiece(Square, Side, PieceType);
@@ -245,11 +245,11 @@ inline void Position::generateLegalMovesEx(MoveList& moves)
 	for (int moveIdx = 0; moveIdx < moves.count(); ++moveIdx)
 	{
 		move = moves[moveIdx].move;
-		if (move.getType() == MT_PROMOTION
-			&& move.getPromotion() == QUEEN) // This condition is true only once for each promotion square
+		if (move.type() == MT_PROMOTION
+			&& move.promotion() == QUEEN) // This condition is true only once for each promotion square
 		{ // Score is irrelevant, thus omitted
-			moves.add(Move(move.getFrom(), move.getTo(), MT_PROMOTION, BISHOP));
-			moves.add(Move(move.getFrom(), move.getTo(), MT_PROMOTION, ROOK));
+			moves.add(Move(move.from(), move.to(), MT_PROMOTION, BISHOP));
+			moves.add(Move(move.from(), move.to(), MT_PROMOTION, ROOK));
 		}
 	}
 	moves.reset();

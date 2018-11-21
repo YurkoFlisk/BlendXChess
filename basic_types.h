@@ -14,7 +14,7 @@
 // Basic typedef types
 //============================================================
 
-typedef int8_t SquareRaw, Side, Depth, PieceType, Piece;
+typedef int8_t SquareRaw, Side, Color, Depth, PieceType, Piece;
 typedef int16_t Score;
 typedef uint64_t Key;
 typedef uint16_t MoveRaw;
@@ -93,7 +93,7 @@ enum GameState : int8_t {
 	GS_WHITE_WIN,
 	GS_BLACK_WIN
 };
-// Sides
+// Sides (Colors)
 enum : Side {
 	WHITE, BLACK, NULL_COLOR,
 };
@@ -139,40 +139,11 @@ constexpr inline Side opposite(Side c) noexcept
 	return c == WHITE ? BLACK : WHITE;
 }
 
-//constexpr inline int8_t getFile(Square sq) noexcept
-//{
-//	return sq & 7;
-//}
-//
-//constexpr inline int8_t getRank(Square sq) noexcept
-//{
-//	return sq >> 3;
-//}
-
-//constexpr inline int8_t getDiagonal(Square sq) noexcept
-//{
-//	return getRank(sq) - getFile(sq) + 7;
-//}
-//
-//constexpr inline int8_t getAntidiagonal(Square sq) noexcept
-//{
-//	return getRank(sq) + getFile(sq);
-//}
-//// Manhattan distance between squares
-//inline int8_t distance(Square sq1, Square sq2) noexcept
-//{
-//	return abs(getRank(sq1) - getRank(sq2)) + abs(getFile(sq1) - getFile(sq2));
-//}
 // Rank relative to a given side
 constexpr inline int8_t relRank(int8_t r, Side c) noexcept
 {
 	return c == WHITE ? r : RANK_CNT - 1 - r;
 }
-//// Square relative to a given side
-//constexpr inline int8_t relSquare(Square sq, Color c) noexcept
-//{
-//	return c == WHITE ? sq : sq + FILE_CNT*(RANK_CNT - 1 - (getRank(sq) << 1));
-//}
 
 constexpr inline bool validRank(int8_t rank) noexcept
 {
@@ -183,11 +154,6 @@ constexpr inline bool validFile(int8_t column) noexcept
 {
 	return 0 <= column && column < FILE_CNT;
 }
-
-//constexpr inline bool validSquare(Square sq) noexcept
-//{
-//	return 0 <= sq && sq < SQUARE_CNT;
-//}
 
 constexpr inline bool validRankAN(char rankAN) noexcept
 {
@@ -229,17 +195,6 @@ constexpr bool validPieceTypeFEN(char ptFEN) noexcept
 	return ptFEN == 'P' || validPieceTypeAN(ptFEN);
 }
 
-//constexpr inline bool cornerSquare(Square sq) noexcept
-//{
-//	return sq == Sq::A1 || sq == Sq::A8 || sq == Sq::H1 || sq == Sq::H8;
-//}
-//
-//constexpr inline bool borderSquare(Square sq) noexcept
-//{
-//	const int8_t r = getRank(sq), f = getFile(sq);
-//	return r == 0 || r == 7 || f == 0 || f == 7;
-//}
-
 constexpr inline int8_t fileFromAN(char fileAN) noexcept
 {
 	return (int8_t)(fileAN - 'a');
@@ -260,41 +215,6 @@ constexpr inline char rankToAN(int8_t rank) noexcept
 	return (char)('1' + rank);
 }
 
-//constexpr inline char getFileAN(Square sq) noexcept
-//{
-//	return fileToAN(getFile(sq));
-//}
-//
-//constexpr inline char getRankAN(Square sq) noexcept
-//{
-//	return rankToAN(getRank(sq));
-//}
-
-//constexpr inline Square makeSquare(int8_t rank, int8_t file) noexcept
-//{
-//	return Square((rank << 3) | file);
-//}
-//
-//inline std::string squareToAN(Square sq)
-//{
-//	return { (char)(getFile(sq) + 'a'), (char)(getRank(sq) + '1') };
-//}
-//
-//inline Square squareFromAN(const std::string& sqAN)
-//{
-//	return makeSquare(rankFromAN(sqAN[1]), fileFromAN(sqAN[0]));
-//}
-//
-//constexpr inline Square getFrom(Move m) noexcept
-//{
-//	return Square((m & MoveDesc::FROM_MASK) >> MoveDesc::FROM_FB);
-//}
-//
-//constexpr inline Square getTo(Move m) noexcept
-//{
-//	return Square((m & MoveDesc::TO_MASK) >> MoveDesc::TO_FB);
-//}
-
 inline CastlingSide castlingSideFromAN(std::string csAN)
 {
 	return csAN == "O-O" ? OO : OOO;
@@ -304,16 +224,6 @@ inline std::string castlingSideToAN(CastlingSide cs)
 {
 	return cs == OO ? "O-O" : "O-O-O";
 }
-
-//constexpr inline CastlingSide getCastlingSide(Move m) noexcept
-//{
-//	return getFile(getTo(m)) == 2 ? OOO : OO;
-//}
-//
-//inline std::string getCastlingSideAN(Move m) noexcept
-//{
-//	return castlingSideToAN(getCastlingSide(m));
-//}
 
 constexpr inline CastlingRight makeCastling(Side c, CastlingSide cs) noexcept
 {
@@ -374,29 +284,6 @@ constexpr inline Piece makePiece(Side c, PieceType pt) noexcept
 {
 	return Piece((c << 3) | pt);
 }
-
-//constexpr inline Move makeMove(int8_t from, int8_t to,
-//	MoveType mt = MT_NORMAL, PieceType promotion = KNIGHT) noexcept
-//{
-//	return (from << MoveDesc::FROM_FB) | (to << MoveDesc::TO_FB) |
-//		(mt << MoveDesc::TYPE_FB) | ((promotion - 2) << MoveDesc::PROMOTION_FB);
-//}
-//
-//constexpr inline Move makeCastlingMove(Color c, CastlingSide cs) noexcept
-//{
-//	return cs == OO ? makeMove(relSquare(Sq::E1, c), relSquare(Sq::G1, c), MT_CASTLING)
-//		: makeMove(relSquare(Sq::E1, c), relSquare(Sq::C1, c), MT_CASTLING);
-//}
-//
-//constexpr inline MoveType getMoveType(Move m) noexcept
-//{
-//	return MoveType((m & MoveDesc::TYPE_MASK) >> MoveDesc::TYPE_FB);
-//}
-//
-//constexpr inline PieceType getPromotion(Move m) noexcept
-//{
-//	return ((m & MoveDesc::PROMOTION_MASK) >> MoveDesc::PROMOTION_FB) + 2;
-//}
 
 //==============================================
 // Class approach
@@ -503,25 +390,29 @@ public:
 	constexpr inline Square(int8_t rank, int8_t file) noexcept
 		: sq((rank << 3) | file)
 	{}
-	constexpr inline int8_t getFile(void) const noexcept
+	constexpr inline int8_t file(void) const noexcept
 	{
 		return sq & 7;
 	}
-	constexpr inline int8_t getRank(void) const noexcept
+	constexpr inline int8_t rank(void) const noexcept
 	{
 		return sq >> 3;
 	}
-	constexpr inline int8_t getDiagonal(void) const noexcept
+	constexpr inline int8_t diagonal(void) const noexcept
 	{
-		return getRank() - getFile() + 7;
+		return rank() - file() + 7;
 	}
-	constexpr inline int8_t getAntidiagonal(void) const noexcept
+	constexpr inline int8_t antidiagonal(void) const noexcept
 	{
-		return getRank() + getFile();
+		return rank() + file();
+	}
+	constexpr inline Color color(void) const noexcept // color of square
+	{
+		return (sq & 1) ^ 1; // Converse nonimplication, btw
 	}
 	constexpr inline bool isBorder(void) const noexcept
 	{
-		const int8_t r = getRank(), f = getFile();
+		const int8_t r = rank(), f = file();
 		return r == RANK_MIN || r == RANK_MAX || f == FILE_MIN || f == FILE_MAX;
 	}
 	constexpr inline bool isCorner(void) const noexcept
@@ -535,19 +426,19 @@ public:
 	// Square relative to a given side (flips row if c is BLACK)
 	constexpr inline Square relativeTo(Side c) const noexcept
 	{
-		return c == WHITE ? *this : sq + FILE_CNT * (RANK_CNT - 1 - (getRank() << 1));
+		return c == WHITE ? *this : sq + FILE_CNT * (RANK_CNT - 1 - (rank() << 1));
 	}
-	constexpr inline char getFileAN(void) const noexcept
+	constexpr inline char fileAN(void) const noexcept
 	{
-		return fileToAN(getFile());
+		return fileToAN(file());
 	}
-	constexpr inline char getRankAN(void) const noexcept
+	constexpr inline char rankAN(void) const noexcept
 	{
-		return rankToAN(getRank());
+		return rankToAN(rank());
 	}
 	inline std::string toAN(void) const
 	{
-		return { (char)(getFile() + 'a'), (char)(getRank() + '1') };
+		return { (char)(file() + 'a'), (char)(rank() + '1') };
 	}
 	constexpr inline operator SquareRaw(void) const noexcept
 	{
@@ -568,8 +459,9 @@ private:
 // Manhattan distance between squares
 inline int8_t distance(Square sq1, Square sq2) noexcept
 {
-	return abs(sq1.getRank() - sq2.getRank()) + abs(sq1.getFile() - sq2.getFile());
+	return abs(sq1.rank() - sq2.rank()) + abs(sq1.file() - sq2.file());
 }
+// Square relative to a given side (flips row if c is BLACK)
 constexpr inline Square relSquare(Square sq, Side c) noexcept
 {
 	return sq.relativeTo(c);
@@ -597,29 +489,29 @@ public:
 	{
 		return move != rhs.move;
 	}
-	constexpr inline Square getFrom(void) const noexcept
+	constexpr inline Square from(void) const noexcept
 	{
 		return Square((move & MoveDesc::FROM_MASK) >> MoveDesc::FROM_FB);
 	}
-	constexpr inline Square getTo(void) const noexcept
+	constexpr inline Square to(void) const noexcept
 	{
 		return Square((move & MoveDesc::TO_MASK) >> MoveDesc::TO_FB);
 	}
-	constexpr inline MoveType getType(void) const noexcept
+	constexpr inline MoveType type(void) const noexcept
 	{
 		return MoveType((move & MoveDesc::TYPE_MASK) >> MoveDesc::TYPE_FB);
 	}
-	constexpr inline PieceType getPromotion(void) const noexcept
+	constexpr inline PieceType promotion(void) const noexcept
 	{
 		return ((move & MoveDesc::PROMOTION_MASK) >> MoveDesc::PROMOTION_FB) + 2;
 	}
-	constexpr inline CastlingSide getCastlingSide(void) const noexcept
+	constexpr inline CastlingSide castlingSide(void) const noexcept
 	{
-		return getTo().getFile() == fileFromAN('c') ? OOO : OO;
+		return to().file() == fileFromAN('c') ? OOO : OO;
 	}
-	inline std::string getCastlingSideAN(void) const
+	inline std::string castlingSideAN(void) const
 	{
-		return castlingSideToAN(getCastlingSide());
+		return castlingSideToAN(castlingSide());
 	}
 	constexpr inline MoveRaw& raw(void) noexcept
 	{
