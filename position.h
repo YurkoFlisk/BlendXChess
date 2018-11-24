@@ -117,8 +117,6 @@ protected:
 	PositionInfo prevStates[MAX_GAME_PLY];
 	// Piece-square score. It is updated incrementally
 	Score psqScore;
-	// History heuristic table
-	Score history[SQUARE_CNT][SQUARE_CNT];
 	// Other
 	int gamePly;
 	Side turn;
@@ -170,6 +168,7 @@ inline void Position::putPiece(Square sq, Side c, PieceType pt)
 	pieceTypeBB[pt] |= bbSquare[sq];
 	pieceTypeBB[PT_ALL] |= bbSquare[sq];
 	pieceSq[c][pt][index[sq] = pieceCount[c][pt]++] = sq;
+	++pieceCount[c][PT_ALL];
 	board[sq] = makePiece(c, pt);
 	psqScore += psqTable[c][pt][sq];
 	info.keyZobrist ^= ZobristPSQ[c][pt][sq];
@@ -201,6 +200,7 @@ inline void Position::removePiece(Square sq)
 	pieceTypeBB[pt] ^= bbSquare[sq];
 	pieceTypeBB[PT_ALL] ^= bbSquare[sq];
 	std::swap(pieceSq[c][pt][--pieceCount[c][pt]], pieceSq[c][pt][index[sq]]);
+	--pieceCount[c][PT_ALL];
 	index[pieceSq[c][pt][index[sq]]] = index[sq];
 	board[sq] = PIECE_NULL;
 	psqScore -= psqTable[c][pt][sq];

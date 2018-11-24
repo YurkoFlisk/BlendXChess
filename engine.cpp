@@ -13,7 +13,9 @@
 //============================================================
 Engine::Engine(void)
 	: gameState(GS_DRAW), timeLimit(TIME_LIMIT_DEFAULT)
-{}
+{
+	reset();
+}
 
 //============================================================
 // Initialization
@@ -35,10 +37,13 @@ void Engine::reset(void)
 	// Killers
 	for (auto& killer : killers)
 		killer.clear();
-	// History heuristic table
+	// History heuristic and countermoves table
 	for (Square from = Sq::A1; from <= Sq::H8; ++from)
 		for (Square to = Sq::A1; to <= Sq::H8; ++to)
+		{
 			history[from][to] = SCORE_ZERO;
+			countermoves[from][to] = MOVE_NONE;
+		}
 	// Game and position history
 	gameHistory.clear();
 	positionRepeats.clear();
@@ -68,9 +73,9 @@ bool Engine::drawByMaterial(void) const
 //============================================================
 bool Engine::threefoldRepetitionDraw(void) const
 {
-	std::stringstream ss;
-	writePosition(ss, true); // Positions are considered equal iff reduced FENs are
-	const auto iter = positionRepeats.find(ss.str());
+	std::stringstream positionFEN;
+	writePosition(positionFEN, true); // Positions are considered equal iff reduced FENs are
+	const auto iter = positionRepeats.find(positionFEN.str());
 	return iter != positionRepeats.end() && iter->second >= 3;
 }
 
@@ -83,8 +88,12 @@ void Engine::updateGameState(void)
 	generateLegalMoves(moveList);
 	if (moveList.empty())
 		gameState = isInCheck() ? (turn == WHITE ? GS_BLACK_WIN : GS_WHITE_WIN) : GS_DRAW;
-	else if (info.rule50 >= 100 || drawByMaterial() || threefoldRepetitionDraw())
-		gameState = GS_DRAW;
+	else if (info.rule50 >= 100)
+		gameState = GS_DRAW, drawCause = DC_RULE_50;
+	else if (drawByMaterial())
+		gameState = GS_DRAW, drawCause = DC_MATERIAL;
+	else if (threefoldRepetitionDraw())
+		gameState = GS_DRAW, drawCause = DC_THREEFOLD_REPETITION;
 	else
 		gameState = GS_ACTIVE;
 }
@@ -113,10 +122,13 @@ bool Engine::DoMove(Move move)
 		return false;
 	std::string moveSAN = moveToSAN(move);
 	doMove(move);
+	// Update game history and position counter
+	std::stringstream positionFEN;
+	writePosition(positionFEN, true);
+	++positionRepeats[positionFEN.str()];
+	gameHistory.push_back({ move, moveSAN });
 	// Update game state
 	updateGameState();
-	// Update game history
-	gameHistory.push_back({ move, moveSAN });
 	return true;
 }
 
@@ -489,12 +501,61 @@ Score Engine::SEECapture(Square from, Square to, Side by)
 }
 
 //============================================================
+// Scores each move from moveList. Second parameter - move from TT
+//============================================================
+void Engine::scoreMoves(MoveList& moveList, Move ttMove)
+{
+	for (int i = 0; i < moveList.count(); ++i)
+	{
+		MLNode& moveNode = moveList[i];
+		const Move& move = moveNode.move;
+		if (move == ttMove)
+		{
+			moveNode.score = MS_TT_BONUS;
+			continue;
+		}
+		moveNode.score = history[move.from()][move.to()];
+		if (isCaptureMove(move))
+			moveNode.score += MS_CAPTURE_BONUS_VICTIM[getPieceType(board[move.to()])]
+				+ MS_CAPTURE_BONUS_ATTACKER[getPieceType(board[move.from()])];
+			//moveNode.score += MS_SEE_MULT * SEECapture(move.from(), move.to(), turn);
+		else
+		{
+			if (move == countermoves[prevMoves[searchPly - 1].from()]
+				[prevMoves[searchPly - 1].to()]) // searchPly is NOT 1-biased where it is called
+				moveNode.score += MS_COUNTERMOVE_BONUS;
+			for (auto killerMove : killers[searchPly])
+				if (move == killerMove)
+				{
+					moveNode.score += MS_KILLER_BONUS;
+					break;
+				}
+		}
+	}
+}
+
+//============================================================
+// Update killer moves
+//============================================================
+void Engine::updateKillers(int searchPly, Move bestMove)
+{
+	// Check whether this potential killer is a new one
+	for (auto killer : killers[searchPly])
+		if (killer == bestMove)
+			return;
+	// If it's new, add it to killers
+	killers[searchPly].push_front(bestMove);
+	if (killers[searchPly].size() > MAX_KILLERS_CNT)
+		killers[searchPly].pop_back();
+}
+
+//============================================================
 // Internal AI logic
 // Quiescent search
 //============================================================
 Score Engine::quiescentSearch(Score alpha, Score beta)
 {
-	static constexpr Score DELTA_MARGIN = 180;
+	static constexpr Score DELTA_MARGIN = 330;
 	// Increment search nodes count
 	if constexpr (SEARCH_NODES_COUNT_ENABLED)
 		++lastSearchNodes;
@@ -516,6 +577,7 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 	sortMoves(moveList);
 	// Test every capture and choose the best one
 	Move move;
+	++searchPly;
 	for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
 	{
 		move = moveList[moveIdx].move;
@@ -541,43 +603,16 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 				break;
 		}
 	}
+	--searchPly;
 	// Return alpha
 	return alpha;
-}
-
-//============================================================
-// Scores each move from moveList. Second parameter - move from TT
-//============================================================
-void Engine::scoreMoves(MoveList& moveList, Move ttMove)
-{
-	for (int i = 0; i < moveList.count(); ++i)
-	{
-		MLNode& moveNode = moveList[i];
-		if (moveNode.move == ttMove)
-		{
-			moveNode.score = MS_TT_BONUS;
-			continue;
-		}
-		moveNode.score = history[moveNode.move.from()][moveNode.move.to()];
-		if (isCaptureMove(moveNode.move))
-		{
-			moveNode.score += MS_CAPTURE_BONUS;
-			for (auto killerMove : killers[searchPly])
-				if (moveNode.move == killerMove)
-				{
-					moveNode.score += MS_KILLER_BONUS;
-					break;
-				}
-		}
-	}
-	moveList.reset();
 }
 
 //============================================================
 // Main AI function
 // Returns position score and outputs the best move to the reference parameter
 // Returns optionally resultant search depth, traversed nodes (including from
-// quiscent search, transposition table hits) through reference parameters
+// quiscent search), transposition table hits, through reference parameters
 //============================================================
 Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, int& hits)
 {
@@ -621,7 +656,7 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 		int curBestScore(SCORE_ZERO);
 		Move curBestMove;
 		// Aspiration windows
-		int delta = 20, alpha = curBestScore - delta, beta = curBestScore + delta;
+		int delta = 25, alpha = curBestScore - delta, beta = curBestScore + delta;
 		while (true)
 		{
 			curBestScore = alpha;
@@ -684,15 +719,12 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 		bestMove = curBestMove;
 		bestScore = curBestScore;
 		resDepth = searchDepth;
-		// Update history
-		if (isCaptureMove(bestMove))
+		// Update history and killers
+		if (!isCaptureMove(bestMove))
 		{
-			killers[searchPly].push_front(move);
-			if (killers[searchPly].size() > MAX_KILLERS_CNT)
-				killers[searchPly].pop_back();
-		}
-		else
+			updateKillers(searchPly, bestMove);
 			history[bestMove.from()][bestMove.to()] += searchDepth * searchDepth;
+		}
 	}
 	// Set nodes count and transposition table hits and return position score
 	if constexpr (SEARCH_NODES_COUNT_ENABLED)
@@ -801,16 +833,15 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 				// Beta-cutoff
 				if (alpha >= beta)
 				{
-					// Update killers
-					if (isCaptureMove(move))
+					// Update killers, countermoves and history
+					if (!isCaptureMove(move))
 					{
-						killers[searchPly - 1].push_front(move);
-						if (killers[searchPly - 1].size() > MAX_KILLERS_CNT)
-							killers[searchPly - 1].pop_back();
-					}
-					else // Update history table
+						updateKillers(searchPly - 1, move);
 						history[move.from()][move.to()] += depth * depth;
-					break; // Cutoff
+						countermoves[prevMoves[searchPly - 2].from()][prevMoves[searchPly - 2].to()] = move;
+					}
+					// Cutoff
+					break;
 				}
 			}
 		}

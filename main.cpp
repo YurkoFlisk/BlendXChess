@@ -86,7 +86,17 @@ int main(void)
 		if (eng.getGameState() != GS_ACTIVE)
 		{
 			if (eng.getGameState() == GS_DRAW)
-				cout << "Draw!" << endl;
+			{
+				const DrawCause drawCause = eng.getDrawCause();
+				cout << "Draw! Cause: " << eng.getDrawCause() << endl;
+				switch (drawCause)
+				{
+				case DC_RULE_50: cout << "Rule 50"; break;
+				case DC_MATERIAL: cout << "Insufficient material"; break;
+				case DC_THREEFOLD_REPETITION: cout << "Threefold repetition"; break;
+				default: cout << "Unknown"; break;
+				}
+			}
 			else if (eng.getGameState() == GS_WHITE_WIN)
 				cout << "Checkmate! White win" << endl;
 			else if (eng.getGameState() == GS_BLACK_WIN)

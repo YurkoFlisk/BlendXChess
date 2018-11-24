@@ -16,7 +16,7 @@
 struct MLNode
 {
 	Move move;
-	Score score;
+	MoveScore score;
 };
 
 //============================================================

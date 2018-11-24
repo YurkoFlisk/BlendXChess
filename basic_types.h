@@ -16,6 +16,7 @@
 
 typedef int8_t SquareRaw, Side, Color, Depth, PieceType, Piece;
 typedef int16_t Score;
+typedef int32_t MoveScore;
 typedef uint64_t Key;
 typedef uint16_t MoveRaw;
 
@@ -92,6 +93,12 @@ enum GameState : int8_t {
 	GS_DRAW,
 	GS_WHITE_WIN,
 	GS_BLACK_WIN
+};
+// Draw causes
+enum DrawCause : int8_t {
+	DC_RULE_50,
+	DC_MATERIAL,
+	DC_THREEFOLD_REPETITION
 };
 // Sides (Colors)
 enum : Side {

@@ -34,17 +34,23 @@ class Engine
 	: public Position
 {
 public:
-	static constexpr Score MS_TT_BONUS = 15000;
-	static constexpr Score MS_CAPTURE_BONUS = 3500;
-	static constexpr Score MS_KILLER_BONUS = 1500; // Over MS_CAPTURE_BONUS (see scoreMoves)
+	static constexpr MoveScore MS_TT_BONUS = 1500000000;
+	static constexpr MoveScore MS_COUNTERMOVE_BONUS = 300000;
+	static constexpr MoveScore MS_SEE_MULT = 1500000 / 100;
+	static constexpr MoveScore MS_CAPTURE_BONUS_VICTIM[PIECETYPE_CNT] = {
+		0, 100000, 285000, 300000, 500000, 1000000, 0 };
+	static constexpr MoveScore MS_CAPTURE_BONUS_ATTACKER[PIECETYPE_CNT] = {
+		0, 1000000, 800000, 750000, 400000, 200000 };
+	static constexpr MoveScore MS_KILLER_BONUS = 1200000;
 	typedef std::list<Move> KillerList;
 	// Constructor
 	Engine(void);
 	// Destructor
 	~Engine(void) = default;
 	// Getters
-	inline GameState getGameState(void);
-	inline int getTimeLimit(void); // ms
+	inline GameState getGameState(void) const;
+	inline DrawCause getDrawCause(void) const;
+	inline int getTimeLimit(void) const; // ms
 	// Setters
 	inline void setTimeLimit(int);
 	// Initialization (should be done before creation of any Engine instance)
@@ -81,6 +87,10 @@ protected:
 		// Move in SAN format (we store it here because it is easier than build it when needed in writeGame method)
 		std::string moveSAN;
 	};
+	// Internal doing and undoing moves with remembering
+	// (assumes searchPly is 1-biased, as in the usual usecase)
+	inline void doMove(Move);
+	inline void undoMove(Move);
 	// Whether the move is a capture
 	inline bool isCaptureMove(Move) const;
 	// (Re-)score moves and sort
@@ -103,14 +113,24 @@ protected:
 	Score SEECapture(Square, Square, Side);
 	// Quiescent search
 	Score quiescentSearch(Score, Score);
+	// Update killer moves
+	void updateKillers(int, Move);
 	// Move scoring
 	void scoreMoves(MoveList&, Move);
+	// Previous moves (for engine purposes)
+	Move prevMoves[MAX_SEARCH_PLY];
 	// Transposition table
 	TranspositionTable transpositionTable;
+	// History heuristic table
+	MoveScore history[SQUARE_CNT][SQUARE_CNT];
+	// Countermoves table
+	Move countermoves[SQUARE_CNT][SQUARE_CNT];
 	// Killer moves
 	KillerList killers[MAX_SEARCH_PLY];
 	// Game state
 	GameState gameState;
+	// Cause of draw game state (valid only if gameState == GS_DRAW)
+	DrawCause drawCause;
 	// Variables in search function
 	int lastSearchNodes;
 	int score;
@@ -139,9 +159,20 @@ private:
 // Implementation of inline functions
 //============================================================
 
+inline void Engine::doMove(Move move)
+{
+	Position::doMove(move);
+	prevMoves[searchPly - 1] = move;
+}
+
+inline void Engine::undoMove(Move move)
+{
+	Position::undoMove(move);
+}
+
 inline bool Engine::isCaptureMove(Move move) const
 {
-	return board[move.to()] != Sq::NONE;
+	return board[move.to()] != PIECE_NULL;
 }
 
 inline void Engine::sortMoves(MoveList& ml, Move ttMove)
@@ -163,12 +194,17 @@ inline Score Engine::scoreFromTT(Score score) const
 		score < SCORE_LOSE_MAX ? score + searchPly : score;
 }
 
-inline GameState Engine::getGameState(void)
+inline GameState Engine::getGameState(void) const
 {
 	return gameState;
 }
 
-inline int Engine::getTimeLimit(void)
+inline DrawCause Engine::getDrawCause(void) const
+{
+	return drawCause;
+}
+
+inline int Engine::getTimeLimit(void) const
 {
 	return timeLimit;
 }
