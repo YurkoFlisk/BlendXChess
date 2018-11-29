@@ -570,26 +570,41 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 		alpha = standPat;
 	// Generate capture (but, if we are in check, all evasions) list
 	MoveList moveList;
-	generateLegalMoves<MG_CAPTURES>(moveList);
+	generatePseudolegalMoves<MG_CAPTURES>(moveList);
 	// If we are in check and no evasion was found, we are lost
-	if (moveList.empty())
-		return isInCheck() ? SCORE_LOSE + searchPly : standPat;
+	/*if (moveList.empty())
+		return isInCheck() ? SCORE_LOSE + searchPly : standPat;*/
 	sortMoves(moveList);
 	// Test every capture and choose the best one
 	Move move;
+	bool anyLegalMove = false, prune;
 	++searchPly;
 	for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
 	{
 		move = moveList[moveIdx].move;
+		prune = false;
 		// Delta pruning
 		if (standPat + ptWeight[getPieceType(board[move.to()])] + DELTA_MARGIN < alpha)
-			continue;
+			prune = true;
 		// Test capture with SEE and if it's score is < 0, than prune
-		if (board[move.to()] != PIECE_NULL && SEECapture(
+		else if (board[move.to()] != PIECE_NULL && SEECapture(
 			move.from(), move.to(), turn) < SCORE_ZERO)
-			continue;
+			prune = true;
 		// Do move
 		doMove(move);
+		// Legality check
+		if (isAttacked(pieceSq[opposite(turn)][KING][0], turn))
+		{
+			undoMove(move);
+			continue;
+		}
+		anyLegalMove = true;
+		// Here we know that this move is legal and anyLegalMove is updated accordingly, so we can prune
+		if (prune)
+		{
+			undoMove(move);
+			continue;
+		}
 		// Quiescent search
 		score = -quiescentSearch(-beta, -alpha);
 		// Undo move
@@ -605,7 +620,7 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 	}
 	--searchPly;
 	// Return alpha
-	return alpha;
+	return anyLegalMove ? alpha : isInCheck() ? SCORE_LOSE + searchPly : standPat;
 }
 
 //============================================================
