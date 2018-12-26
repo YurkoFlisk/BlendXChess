@@ -47,10 +47,13 @@ extern Bitboard bbFile[FILE_CNT];
 extern Bitboard bbSquare[SQUARE_CNT];
 extern Bitboard bbDiagonal[DIAG_CNT];
 extern Bitboard bbAntidiagonal[DIAG_CNT];
+extern Bitboard bbPawnQuiet[COLOR_CNT][SQUARE_CNT];
 extern Bitboard bbPawnAttack[COLOR_CNT][SQUARE_CNT];
-extern Bitboard bbKnightAttack[SQUARE_CNT];
-extern Bitboard bbKingAttack[SQUARE_CNT];
+extern Bitboard bbAttackEB[PIECETYPE_CNT][SQUARE_CNT]; // attack bitboard for pieces (except pawns) on empty board
+extern Bitboard (&bbKnightAttack)[SQUARE_CNT];
+extern Bitboard (&bbKingAttack)[SQUARE_CNT];
 extern Bitboard bbCastlingInner[COLOR_CNT][CASTLING_SIDE_CNT];
+extern Bitboard bbBetween[SQUARE_CNT][SQUARE_CNT];
 extern Magic mRookMagics[SQUARE_CNT];
 extern Magic mBishopMagics[SQUARE_CNT];
 extern Key ZobristPSQ[COLOR_CNT][PIECETYPE_CNT][SQUARE_CNT];

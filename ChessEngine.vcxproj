@@ -170,6 +170,7 @@
     <ClCompile Include="evaluate.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="movelist.cpp" />
+    <ClCompile Include="move_manager.cpp" />
     <ClCompile Include="position.cpp" />
     <ClCompile Include="transtable.cpp" />
   </ItemGroup>
@@ -179,6 +180,7 @@
     <ClInclude Include="engine.h" />
     <ClInclude Include="evaluate.h" />
     <ClInclude Include="movelist.h" />
+    <ClInclude Include="move_manager.h" />
     <ClInclude Include="position.h" />
     <ClInclude Include="transtable.h" />
   </ItemGroup>

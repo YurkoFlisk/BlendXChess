@@ -4,6 +4,7 @@
 //============================================================
 
 #include "engine.h"
+#include "move_manager.h"
 #include <cctype>
 #include <sstream>
 #include <algorithm>
@@ -501,19 +502,14 @@ Score Engine::SEECapture(Square from, Square to, Side by)
 }
 
 //============================================================
-// Scores each move from moveList. Second parameter - move from TT
+// Scores each move from moveList
 //============================================================
-void Engine::scoreMoves(MoveList& moveList, Move ttMove)
+void Engine::scoreMoves(MoveList& moveList)
 {
 	for (int i = 0; i < moveList.count(); ++i)
 	{
 		MLNode& moveNode = moveList[i];
 		const Move& move = moveNode.move;
-		if (move == ttMove)
-		{
-			moveNode.score = MS_TT_BONUS;
-			continue;
-		}
 		moveNode.score = history[move.from()][move.to()];
 		if (isCaptureMove(move))
 			moveNode.score += MS_CAPTURE_BONUS_VICTIM[getPieceType(board[move.to()])]
@@ -521,7 +517,8 @@ void Engine::scoreMoves(MoveList& moveList, Move ttMove)
 			//moveNode.score += MS_SEE_MULT * SEECapture(move.from(), move.to(), turn);
 		else
 		{
-			if (move == countermoves[prevMoves[searchPly - 1].from()]
+			assert(searchPly == 0 || prevMoves[searchPly - 1] != MOVE_NONE);
+			if (searchPly > 0 && move == countermoves[prevMoves[searchPly - 1].from()]
 				[prevMoves[searchPly - 1].to()]) // searchPly is NOT 1-biased where it is called
 				moveNode.score += MS_COUNTERMOVE_BONUS;
 			for (auto killerMove : killers[searchPly])
@@ -572,13 +569,12 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 	MoveList moveList;
 	generatePseudolegalMoves<MG_CAPTURES>(moveList);
 	// If we are in check and no evasion was found, we are lost
-	/*if (moveList.empty())
-		return isInCheck() ? SCORE_LOSE + searchPly : standPat;*/
+	if (moveList.empty())
+		return isInCheck() ? SCORE_LOSE + searchPly : standPat;
 	sortMoves(moveList);
 	// Test every capture and choose the best one
 	Move move;
 	bool anyLegalMove = false, prune;
-	++searchPly;
 	for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
 	{
 		move = moveList[moveIdx].move;
@@ -618,7 +614,6 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 				break;
 		}
 	}
-	--searchPly;
 	// Return alpha
 	return anyLegalMove ? alpha : isInCheck() ? SCORE_LOSE + searchPly : standPat;
 }
@@ -660,27 +655,23 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 		timeCheckCounter = 0;
 		timeout = false;
 	}
-	// Generate possible moves
-	MoveList moveList;
-	generateLegalMoves(moveList);
 	// Iterative deepening
 	for (Depth searchDepth = 1; searchDepth <= depth; ++searchDepth)
 	{
-		sortMoves(moveList, bestMove);
 		// Best move and score of current iteration
 		int curBestScore(SCORE_ZERO);
-		Move curBestMove;
+		Move curBestMove = bestMove;
 		// Aspiration windows
 		int delta = 25, alpha = curBestScore - delta, beta = curBestScore + delta;
 		while (true)
 		{
+			// Initialize move picking manager
+			MoveManager moveManager(*this, curBestMove);
 			curBestScore = alpha;
 			// Test every move and choose the best one
-			++searchPly;
 			bool pvSearch = true;
-			for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
+			while ((move = moveManager.next()) != MOVE_NONE)
 			{
-				move = moveList[moveIdx].move;
 				// Do move
 				doMove(move);
 				// Principal variation search
@@ -712,12 +703,9 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 					}
 				}
 			}
-			--searchPly;
 			// Timeout check
 			if (timeout)
 				break;
-			// Reset move list (so we can traverse it again)
-			moveList.reset();
 			// If bestScore is inside the window, it is final score
 			if (alpha < curBestScore && curBestScore < beta)
 				break;
@@ -797,21 +785,20 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 		if constexpr (TT_HITS_COUNT_ENABLED)
 			++ttHits;
 	}
-	// Generate possible moves
-	MoveList moveList;
-	generatePseudolegalMoves(moveList);
-	// If there are no moves, it's either mate or stalemate
-	if (moveList.empty())
-		return isInCheck() ? SCORE_LOSE + searchPly : SCORE_ZERO;
-	// Sort move list according to their move ordering scores
-	sortMoves(moveList, ttMove);
+	MoveManager moveManager(*this, ttMove);
+	//// Generate possible moves
+	//MoveList moveList;
+	//generatePseudolegalMoves(moveList);
+	//// If there are no moves, it's either mate or stalemate
+	//if (moveList.empty())
+	//	return isInCheck() ? SCORE_LOSE + searchPly : SCORE_ZERO;
+	//// Sort move list according to their move ordering scores
+	//sortMoves(moveList);
 	// Test every move and choose the best one
 	Score bestScore = SCORE_LOSE;
 	bool anyLegalMove = false, pvSearch = true;
-	++searchPly;
-	for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
+	while ((move = moveManager.next()) != MOVE_NONE)
 	{
-		move = moveList[moveIdx].move;
 		// Do move
 		doMove(move);
 		// Legality check
@@ -851,9 +838,9 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 					// Update killers, countermoves and history
 					if (!isCaptureMove(move))
 					{
-						updateKillers(searchPly - 1, move);
+						updateKillers(searchPly, move);
 						history[move.from()][move.to()] += depth * depth;
-						countermoves[prevMoves[searchPly - 2].from()][prevMoves[searchPly - 2].to()] = move;
+						countermoves[prevMoves[searchPly - 1].from()][prevMoves[searchPly - 1].to()] = move;
 					}
 					// Cutoff
 					break;
@@ -861,7 +848,6 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 			}
 		}
 	}
-	--searchPly;
 	// Save collected info to the transposition table
 	if (anyLegalMove)
 		transpositionTable.store(info.keyZobrist, depth, alpha == oldAlpha ? BOUND_UPPER :

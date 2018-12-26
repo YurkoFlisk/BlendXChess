@@ -17,9 +17,12 @@ Bitboard bbFile[FILE_CNT];
 Bitboard bbSquare[SQUARE_CNT];
 Bitboard bbDiagonal[DIAG_CNT] = {};
 Bitboard bbAntidiagonal[DIAG_CNT] = {};
+Bitboard bbPawnQuiet[COLOR_CNT][SQUARE_CNT] = {};
 Bitboard bbPawnAttack[COLOR_CNT][SQUARE_CNT] = {};
-Bitboard bbKnightAttack[SQUARE_CNT] = {};
-Bitboard bbKingAttack[SQUARE_CNT] = {};
+Bitboard bbAttackEB[PIECETYPE_CNT][SQUARE_CNT] = {};
+Bitboard (&bbKnightAttack)[SQUARE_CNT] = bbAttackEB[KNIGHT];
+Bitboard (&bbKingAttack)[SQUARE_CNT] = bbAttackEB[KING];
+Bitboard bbBetween[SQUARE_CNT][SQUARE_CNT] = {};
 Bitboard bbCastlingInner[COLOR_CNT][CASTLING_SIDE_CNT];
 Magic mRookMagics[SQUARE_CNT];
 Magic mBishopMagics[SQUARE_CNT];
@@ -182,6 +185,15 @@ void initBB(void)
 		for (int8_t r = (i > 7 ? 7 : i), c = (i > 7 ? i - 7 : 0); r >= 0 && c < 8; --r, ++c)
 			bbAntidiagonal[i] |= bbSquare[Square(r, c)];
 	}
+	// Initialize bbPawnQuiet
+	for (Side c = WHITE; c <= BLACK; ++c)
+	{
+		const Square FORWARD = (c == WHITE ? Sq::D_UP : Sq::D_DOWN);
+		for (Square sq = relSquare(A2, c); sq <= relSquare(H2, c); ++sq)
+			bbPawnQuiet[c][sq] = bbSquare[sq + FORWARD] | bbSquare[sq + 2 * FORWARD];
+		for (Square sq = A3, relSq; sq <= H7; ++sq)
+			bbPawnQuiet[c][relSq = relSquare(sq, c)] = bbSquare[relSq + FORWARD];
+	}
 	// Initialize bbPawnAttack
 	for (Side c = WHITE; c <= BLACK; ++c)
 		for (Square sq = A1, to; sq < H8; ++sq)
@@ -191,7 +203,7 @@ void initBB(void)
 			if (sq.file() != fileFromAN('h') && (to = sq + D_RU - (c << 4)).isValid())
 				bbPawnAttack[c][sq] |= bbSquare[to];
 		}
-	// Initialize bbKnightAttack and bbKingAttack
+	// Initialize bbKnightAttack and bbKingAttack (aliases for bbAttackEB members)
 	static constexpr Square
 		knightStep[8] = { -17, -15, -10, -6, 6, 10, 15, 17 },
 		kingStep[8] = { D_LD, D_DOWN, D_RD, D_LEFT, D_RIGHT, D_LU, D_UP, D_RU};
@@ -203,6 +215,20 @@ void initBB(void)
 			if ((to = sq + kingStep[d]).isValid() && distance(sq, to) <= 2)
 				bbKingAttack[sq] |= bbSquare[to];
 		}
+	// Initialize the rest of bbAttackEB
+	for (Square sq = A1; sq < SQUARE_CNT; ++sq)
+	{
+		bbAttackEB[BISHOP][sq] = (bbDiagonal[sq.diagonal()] | bbAntidiagonal[sq.antidiagonal()]
+			) & ~bbSquare[sq];
+		bbAttackEB[ROOK][sq] = (bbRank[sq.rank()] | bbFile[sq.file()]) & ~bbSquare[sq];
+		bbAttackEB[QUEEN][sq] = bbAttackEB[BISHOP][sq] | bbAttackEB[ROOK][sq];
+	}
+	// Initialize in-between (excluding endpoints) bitboards
+	for (Square sq1 = A1; sq1 <= H8; ++sq1)
+		for (int d = 0; d < 8; ++d)
+			for (Square sq2 = sq1 + kingStep[d] * 2; sq2.isValid(); ++sq2)
+				for (Square bsq = sq1 + kingStep[d]; bsq < sq2; ++bsq)
+					bbBetween[sq1][sq2] |= bbSquare[bsq];
 	// Initialize bitboards for castling's inners
 	for (Side c = WHITE; c <= BLACK; ++c)
 	{

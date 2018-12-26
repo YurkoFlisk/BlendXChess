@@ -207,6 +207,43 @@ void Position::undoMove(Move move)
 }
 
 //============================================================
+// Internal test for pseudo-legality (still assumes some conditions
+// which TT-move satisfies, eg castlings have appropriate from-to squares)
+//============================================================
+bool Position::isPseudoLegal(Move move)
+{
+	const Square from = move.from(), to = move.to();
+	if (getPieceSide(board[from]) != turn || getPieceSide(board[to]) == turn
+		|| occupiedBB() & bbBetween[from][to])
+		return false;
+	// We don't check eg whether the king is on E1/E8 square, since tested move
+	// is assumed to be previously generated for some valid position
+	// Check on 'from' is needed if 'move' could have been generated for opposite side to 'turn'
+	if (move.type() == MT_CASTLING)
+		if (move.castlingSide() == OO)
+			return info.castlingRight & makeCastling(turn, OO) && from == relSquare(Sq::E1, turn)
+				&& (occupiedBB() & bbCastlingInner[turn][OO]) == 0
+				&& !isAttacked(from, opposite(turn))
+				&& !isAttacked(relSquare(Sq::F1, turn), opposite(turn))
+				&& !isAttacked(relSquare(Sq::G1, turn), opposite(turn));
+		else
+			return info.castlingRight & makeCastling(turn, OOO) && from == relSquare(Sq::E1, turn)
+				&& (occupiedBB() & bbCastlingInner[turn][OOO]) == 0
+				&& !isAttacked(from, opposite(turn))
+				&& !isAttacked(relSquare(Sq::D1, turn), opposite(turn))
+				&& !isAttacked(relSquare(Sq::C1, turn), opposite(turn));
+	if (const PieceType pt = getPieceType(board[from]); pt == PAWN)
+	{
+		if (move.type() == MT_EN_PASSANT)
+			return to == info.epSquare && bbPawnAttack[turn][from] & bbSquare[to];
+		else
+			return bbSquare[to] & (board[to] == PIECE_NULL ? bbPawnQuiet : bbPawnAttack)[turn][from];
+	}
+	else
+		return bbAttackEB[pt][from] & bbSquare[to];
+}
+
+//============================================================
 // Reveal PAWN moves in given direction from attack bitboard (legal if LEGAL == true and pseudolegal otherwise)
 //============================================================
 template<Side TURN, bool LEGAL>
@@ -251,7 +288,7 @@ void Position::revealMoves(Square from, Bitboard attackBB, MoveList& moves)
 }
 
 //============================================================
-// Generate all pawn moves for given TURN(should match position's turn value)
+// Generate all pawn moves for given TURN (should match position's turn value)
 //============================================================
 template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
 void Position::generatePawnMoves(MoveList& moves)
@@ -265,12 +302,13 @@ void Position::generatePawnMoves(MoveList& moves)
 	static constexpr Bitboard BB_REL_RANK_3 =	(TURN == WHITE ? BB_RANK_3 : BB_RANK_6);
 	if (MG_TYPE & MG_CAPTURES)
 	{
-		// Left and right pawn capture moves(including promotions)
+		// Left and right pawn capture moves (including promotions)
 		revealPawnMoves<TURN, LEGAL>(shiftD<LEFT_CAPT>(pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], LEFT_CAPT, moves);
 		revealPawnMoves<TURN, LEGAL>(shiftD<RIGHT_CAPT>(pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], RIGHT_CAPT, moves);
 		// En passant
 		if ((MG_TYPE & MG_CAPTURES) && info.epSquare != Sq::NONE)
 		{
+			assert(board[info.epSquare] == PIECE_NULL && board[info.epSquare + FORWARD] == PIECE_NULL);
 			assert(board[info.epSquare - FORWARD] == makePiece(opposite(TURN), PAWN));
 			Square from;
 			if (info.epSquare.file() != 7 && board[from = info.epSquare - LEFT_CAPT] == TURN_PAWN)
@@ -281,10 +319,10 @@ void Position::generatePawnMoves(MoveList& moves)
 	}
 	if (MG_TYPE & MG_NON_CAPTURES)
 	{
-		// One-step pawn forward moves(including promotions)
+		// One-step pawn forward moves (including promotions)
 		Bitboard destBB = shiftD<FORWARD>(pieceBB(TURN, PAWN)) & emptyBB();
 		revealPawnMoves<TURN, LEGAL>(destBB, FORWARD, moves);
-		// Two-step pawn forward moves(here we can't promote)
+		// Two-step pawn forward moves (here we can't promote)
 		destBB = shiftD<FORWARD>(destBB & BB_REL_RANK_3) & emptyBB();
 		while (destBB)
 		{

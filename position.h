@@ -21,7 +21,7 @@ struct PositionInfo
 {
 	PieceType justCaptured; // If last move was a capture, we store it's type here
 	uint8_t rule50; // Counter for 50-move draw rule
-	Square epSquare; // Square where en passant is possible (if the last move was double pushed pawn)
+	Square epSquare; // Square to which en passant is possible (if the last move was double pushed pawn)
 	int8_t castlingRight; // Mask representing valid castlings
 	Key keyZobrist; // Zobrist key of the position
 };
@@ -72,6 +72,8 @@ protected:
 	// Internal doing and undoing moves
 	void doMove(Move);
 	void undoMove(Move);
+	// Internal test for pseudo-legality (still assumes some conditions which TT-move must satisfy)
+	bool isPseudoLegal(Move);
 	// Helper for move generating functions
 	// It adds pseudo-legal move to vector if LEGAL == false or, otherwise, if move is legal
 	template<Side TURN, bool LEGAL>

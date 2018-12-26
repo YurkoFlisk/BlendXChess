@@ -45,10 +45,10 @@ Move MoveList::getNextBest(void)
 {
 	if (moveIdx == moveCnt)
 		return MOVE_NONE;
-	// One bubble sort iteration, which reorders the rest moves in a manner that the best one becomes the current
+	// One selection sort iteration, which reorders the rest moves in a manner that the best one becomes the current
 	for (int i = moveIdx + 1; i < moveCnt; ++i)
-		if (moves[i].score > moves[i - 1].score)
-			std::swap(moves[i], moves[i - 1]);
+		if (moves[i].score > moves[moveIdx].score)
+			std::swap(moves[i], moves[moveIdx]);
 	return moves[moveIdx++].move;
 }
 
