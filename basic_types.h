@@ -92,7 +92,8 @@ enum GameState : int8_t {
 	GS_ACTIVE,
 	GS_DRAW,
 	GS_WHITE_WIN,
-	GS_BLACK_WIN
+	GS_BLACK_WIN,
+	GS_UNDEFINED
 };
 // Draw causes
 enum DrawCause : int8_t {
@@ -235,6 +236,12 @@ inline std::string castlingSideToAN(CastlingSide cs)
 constexpr inline CastlingRight makeCastling(Side c, CastlingSide cs) noexcept
 {
 	return CastlingRight(CR_WHITE_OO << ((c << 1) | cs));
+}
+
+constexpr inline bool isSingularCR(CastlingRight cr) noexcept
+{
+	return cr == CR_WHITE_OO || cr == CR_WHITE_OOO || cr == CR_BLACK_OO || cr == CR_BLACK_OOO;
+	// return cr && (!(cr & (cr - 1))); // because singular CRs are powers of 2
 }
 
 // Piece type from uppercase identifier in algebraic notations
@@ -519,6 +526,24 @@ public:
 	inline std::string castlingSideAN(void) const
 	{
 		return castlingSideToAN(castlingSide());
+	}
+	std::string toAN(void) const
+	{
+		if (type() == MT_CASTLING)
+			return (to().file() == fileFromAN('g') ? "O-O" : "O-O-O");
+		else
+		{
+			std::string AN = from().toAN() + "-" + to().toAN();
+			if (type() == MT_PROMOTION)
+				switch (promotion())
+				{
+				case KNIGHT:	AN.push_back('N'); break;
+				case BISHOP:	AN.push_back('B'); break;
+				case ROOK:		AN.push_back('R'); break;
+				case QUEEN:		AN.push_back('Q'); break;
+				}
+			return AN;
+		}
 	}
 	constexpr inline MoveRaw& raw(void) noexcept
 	{

@@ -52,6 +52,8 @@ public:
 	inline Bitboard pieceBB(Side, PieceType) const;
 	inline Bitboard occupiedBB(void) const;
 	inline Bitboard emptyBB(void) const;
+	// Clear position
+	void clear(void);
 	// Reset position
 	void reset(void);
 	// Whether a square is attacked by given side
@@ -60,8 +62,8 @@ public:
 	Square leastAttacker(Square, Side) const;
 	// Whether current side is in check
 	inline bool isInCheck(void) const;
-	// Load position from a given stream in FEN notation
-	void loadPosition(std::istream&);
+	// Load position from a given stream in FEN notation (bool parameter says whether to omit move counters)
+	void loadPosition(std::istream&, bool = false);
 	// Write position to a given stream in FEN notation, possibly omitting half- and full-move counters
 	void writePosition(std::ostream&, bool = false) const;
 protected:
@@ -69,11 +71,16 @@ protected:
 	inline void putPiece(Square, Side, PieceType);
 	inline void movePiece(Square, Square);
 	inline void removePiece(Square);
+	// Internal helper of doMove for safely updating castling rights (ie taking care of Zobrists)
+	// Assumes only singular castling right arguments
+	inline void removeCastlingRight(CastlingRight);
 	// Internal doing and undoing moves
 	void doMove(Move);
 	void undoMove(Move);
 	// Internal test for pseudo-legality (still assumes some conditions which TT-move must satisfy)
 	bool isPseudoLegal(Move);
+	// Internal test for legality (assumes pseudo-legality of argument)
+	inline bool isLegal(Move);
 	// Helper for move generating functions
 	// It adds pseudo-legal move to vector if LEGAL == false or, otherwise, if move is legal
 	template<Side TURN, bool LEGAL>
@@ -181,7 +188,7 @@ inline void Position::movePiece(Square from, Square to)
 	const Side c = getPieceSide(board[from]);
 	const PieceType pt = getPieceType(board[from]);
 	const Bitboard fromToBB = bbSquare[from] ^ bbSquare[to];
-	assert(pt != PT_NULL);
+	assert(getPieceSide(board[from]) == turn);
 	assert(board[to] == PIECE_NULL);
 	colorBB[c] ^= fromToBB;
 	pieceTypeBB[pt] ^= fromToBB;
@@ -207,6 +214,22 @@ inline void Position::removePiece(Square sq)
 	board[sq] = PIECE_NULL;
 	psqScore -= psqTable[c][pt][sq];
 	info.keyZobrist ^= ZobristPSQ[c][pt][sq];
+}
+
+inline void Position::removeCastlingRight(CastlingRight cr)
+{
+	assert(isSingularCR(cr));
+	if (info.castlingRight & cr)
+		info.castlingRight &= ~cr, info.keyZobrist ^= ZobristCR[cr];
+}
+
+inline bool Position::isLegal(Move move)
+{
+	// MAYBE TEMPORARY (relatively slow and easy approach is used)
+	doMove(move);
+	const bool legal = !isAttacked(pieceSq[opposite(turn)][KING][0], turn);
+	undoMove(move);
+	return legal;
 }
 
 template<MoveGen MG_TYPE>
@@ -265,6 +288,8 @@ inline void Position::addMoveIfSuitable(Move move, MoveList& moves)
 	// If we are looking for legal moves, do a legality check
 	if constexpr (LEGAL)
 	{
+		//if (isLegal(move))
+		//	moves.add(move);
 		// A pseudolegal move is legal iff the king is not under attack when it is performed
 		doMove(move);
 		// After doMove, turn has changed until undoMove, so it is critical that in the next two lines we use TURN

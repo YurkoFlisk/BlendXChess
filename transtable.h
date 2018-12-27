@@ -59,6 +59,8 @@ public:
 	inline void store(Key, Depth, Bound, Score, Move, int16_t);
 	// Probe the given key and return nullptr if there's not such entry or a pointer to one if it's found
 	inline const TTEntry* probe(Key) const;
+	// Clear transposition table;
+	inline void clear(void);
 private:
 	TTBucket table[TTBUCKET_COUNT];
 };
@@ -80,6 +82,11 @@ inline void TranspositionTable::store(Key key, Depth depth, Bound bound, Score s
 inline const TTEntry* TranspositionTable::probe(Key key) const
 {
 	return table[key & TTINDEX_MASK].probe(key);
+}
+
+inline void TranspositionTable::clear(void)
+{
+	memset(table, 0, sizeof(table)); // TODO maybe sometimes this is too slow and reduntant?
 }
 
 #endif

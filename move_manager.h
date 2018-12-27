@@ -19,6 +19,7 @@ enum MMState
 // Class for ordered selection of pseudolegal moves during search
 //============================================================
 
+template<bool LEGAL = false>
 class MoveManager
 {
 public:
@@ -31,6 +32,7 @@ private:
 	MMState state;
 	Move ttMove;
 	MoveList moveList;
+	bool legalTT;
 };
 
 #endif

@@ -57,9 +57,9 @@ extern Bitboard bbBetween[SQUARE_CNT][SQUARE_CNT];
 extern Magic mRookMagics[SQUARE_CNT];
 extern Magic mBishopMagics[SQUARE_CNT];
 extern Key ZobristPSQ[COLOR_CNT][PIECETYPE_CNT][SQUARE_CNT];
-extern Key ZobristCR[CR_BLACK_OOO + 1];
+extern Key ZobristCR[CR_BLACK_OOO + 1]; // valid only for 'singular' castling rights
 extern Key ZobristEP[FILE_CNT];
-extern Key ZobristSide;
+extern Key ZobristBlackSide;
 
 //============================================================
 // Functions

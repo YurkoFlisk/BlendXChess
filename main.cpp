@@ -17,20 +17,79 @@ int main(void)
 		for (PieceType pt = PAWN; pt <= KING; ++pt)
 			for (Square sq = Sq::A1; sq <= Sq::H8; ++sq)
 				cout << ZobristPSQ[c][pt][sq] << endl; */
-	char userWhite;
+	char userWhite, startMode;
 	Side userTurn;
 	Depth resDepth, depth;
-	int nodes, timeLimit, inDepth, ttHits;
+	int nodes, timeLimit, inDepth, ttHits, perftDepth;
 	Move cpuMove;
-	string strMove;
+	string strMove, path, perft;
 	eng.reset();
+#ifndef _DEBUG
 	for (int i = 5; i <= 5; ++i)
 	{
 		auto st = chrono::high_resolution_clock::now();
 		cout << eng.perft(i);
 		auto en = chrono::high_resolution_clock::now();
-		cout << " Perft("<< i << ") is " << chrono::duration_cast<
+		cout << " Perft("<< i << ") on initial position is " << chrono::duration_cast<
 			chrono::milliseconds>(en - st).count() << "ms\n";
+	}
+#endif
+	cout << "Do you want to load game or "
+		"position ('P'/'p') or start from initial position (everything else)?: ";
+	cin >> startMode;
+	if (tolower(startMode) == 'p')
+	{
+		cout << "Enter position filepath: ";
+		cin.ignore(numeric_limits<streamsize>::max(), '\n');
+		getline(cin, path);
+		ifstream in(path);
+		try
+		{
+			eng.loadPosition(in, true);
+		}
+		catch (const runtime_error& err)
+		{
+			cerr << err.what() << endl;
+			return 0;
+		}
+		in.close();
+		cout << "Perft (ignoring timelimit)? (number for depth, other for no): ";
+		getline(cin, perft);
+		bool doPerft = true;
+		try
+		{
+			perftDepth = std::stoi(perft);
+		}
+		catch (const invalid_argument&)
+		{
+			doPerft = false;
+		}
+		if (doPerft)
+		{
+			for (int i = 1; i <= perftDepth; ++i)
+			{
+				auto st = chrono::high_resolution_clock::now();
+				cout << eng.perft<true>(i);
+				auto en = chrono::high_resolution_clock::now();
+				cout << " Perft(" << i << ") on given is " << chrono::duration_cast<
+					chrono::milliseconds>(en - st).count() << "ms\n";
+			}
+			return 0;
+		}
+	}
+	else if (tolower(startMode) == 'g')
+	{
+		cout << "Enter game filepath: ";
+		cin.ignore(numeric_limits<streamsize>::max(), '\n');
+		getline(cin, path);
+		ifstream in(path);
+		while (getline(in, strMove))
+			if (!eng.DoMove(strMove))
+			{
+				cout << "Wrong move " << strMove << " in input.txt" << endl;
+				return 0;
+			}
+		in.close();
 	}
 	cout << "Set timelimit please (in ms): ";
 	cin >> timeLimit;
@@ -44,14 +103,6 @@ int main(void)
 		userTurn = BLACK;
 	depth = inDepth;
 	eng.setTimeLimit(timeLimit);
-	ifstream in("input.txt");
-	while (getline(in, strMove))
-		if (!eng.DoMove(strMove))
-		{
-			cout << "Wrong move " << strMove << " in input.txt" << endl;
-			return 0;
-		}
-	in.close();
 	while (true)
 	{
 		if (eng.getTurn() == userTurn)
@@ -66,18 +117,7 @@ int main(void)
 			const Score score = eng.AIMove(cpuMove, depth, resDepth, nodes, ttHits);
 			auto en = chrono::high_resolution_clock::now();
 			eng.DoMove(cpuMove);
-			if (cpuMove.type() == MT_CASTLING)
-				cout << (cpuMove.to().file() == fileFromAN('g') ? "O-O" : "O-O-O");
-			else
-			{
-				cout << cpuMove.from().toAN() << '-' << cpuMove.to().toAN();
-				if (cpuMove.type() == MT_PROMOTION)
-					switch (cpuMove.promotion())
-					{
-					case KNIGHT: cout << 'N'; break;
-					case QUEEN: cout << 'Q'; break;
-					}
-			}
+			cout << cpuMove.toAN();
 			cout << ' ' << nodes << " nodes searched in "
 				<< chrono::duration_cast<chrono::milliseconds>(en - st).count()
 				<< " ms to depth " << (int)resDepth << ". The score is " << score << ". "

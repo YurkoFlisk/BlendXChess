@@ -29,11 +29,37 @@ void Engine::initialize(void)
 }
 
 //============================================================
+// Clear position and search info (everything except TT)
+//============================================================
+void Engine::clear(void)
+{
+	Position::clear();
+	lastSearchNodes = 0;
+	gameState = GS_UNDEFINED;
+	// Killers
+	for (auto& killer : killers)
+		killer.clear();
+	// History heuristic and countermoves table
+	for (Square from = Sq::A1; from <= Sq::H8; ++from)
+		for (Square to = Sq::A1; to <= Sq::H8; ++to)
+		{
+			history[from][to] = SCORE_ZERO;
+			countermoves[from][to] = MOVE_NONE;
+		}
+	// Game and position history
+	gameHistory.clear();
+	positionRepeats.clear();
+	// Transposition table clear (TODO)
+	transpositionTable.clear();
+}
+
+//============================================================
 // Reset game
 //============================================================
 void Engine::reset(void)
 {
-	Position::reset();
+	clear();
+	Position::reset(); // Position::clear will also be called from here but it's not crucial
 	gameState = GS_ACTIVE;
 	// Killers
 	for (auto& killer : killers)
@@ -220,8 +246,10 @@ bool Engine::UndoMove(void)
 }
 
 //============================================================
-// Performance test
+// Performance test (if MG_LEGAL is true, all moves are tested for legality
+// during generation and promotions to bishops and rooks are included)
 //============================================================
+template<bool MG_LEGAL>
 int Engine::perft(Depth depth)
 {
 	if (depth == 0)
@@ -229,17 +257,21 @@ int Engine::perft(Depth depth)
 	int nodes(0);
 	Move move;
 	MoveList moveList;
-	generatePseudolegalMoves(moveList);
+	if constexpr (MG_LEGAL)
+		generateLegalMovesEx(moveList);
+	else
+		generatePseudolegalMoves(moveList);
 	for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
 	{
 		move = moveList[moveIdx].move;
 		doMove(move);
-		if (isAttacked(pieceSq[opposite(turn)][KING][0], turn))
-		{
-			undoMove(move);
-			continue;
-		}
-		nodes += perft(depth - 1);
+		if constexpr (!MG_LEGAL)
+			if (isAttacked(pieceSq[opposite(turn)][KING][0], turn))
+			{
+				undoMove(move);
+				continue;
+			}
+		nodes += perft<MG_LEGAL>(depth - 1);
 		undoMove(move);
 	}
 	return nodes;
@@ -666,7 +698,7 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 		while (true)
 		{
 			// Initialize move picking manager
-			MoveManager moveManager(*this, curBestMove);
+			MoveManager<true> moveManager(*this, curBestMove);
 			curBestScore = alpha;
 			// Test every move and choose the best one
 			bool pvSearch = true;
@@ -786,15 +818,6 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 			++ttHits;
 	}
 	MoveManager moveManager(*this, ttMove);
-	//// Generate possible moves
-	//MoveList moveList;
-	//generatePseudolegalMoves(moveList);
-	//// If there are no moves, it's either mate or stalemate
-	//if (moveList.empty())
-	//	return isInCheck() ? SCORE_LOSE + searchPly : SCORE_ZERO;
-	//// Sort move list according to their move ordering scores
-	//sortMoves(moveList);
-	// Test every move and choose the best one
 	Score bestScore = SCORE_LOSE;
 	bool anyLegalMove = false, pvSearch = true;
 	while ((move = moveManager.next()) != MOVE_NONE)
@@ -855,3 +878,9 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 	// Return alpha
 	return anyLegalMove ? alpha : isInCheck() ? SCORE_LOSE + searchPly : SCORE_ZERO;
 }
+
+//============================================================
+// Explicit template instantiations
+//============================================================
+template int Engine::perft<false>(Depth);
+template int Engine::perft<true>(Depth);

@@ -26,6 +26,8 @@ constexpr bool TIME_CHECK_ENABLED = true;
 constexpr int TIME_CHECK_INTERVAL = 10000; // nodes entered by pvs
 constexpr int TIME_LIMIT_DEFAULT = 5000; // ms
 
+template<bool> class MoveManager;
+
 //============================================================
 // Main engine class
 //============================================================
@@ -33,7 +35,8 @@ constexpr int TIME_LIMIT_DEFAULT = 5000; // ms
 class Engine
 	: public Position
 {
-	friend class MoveManager;
+	friend class MoveManager<true>;
+	friend class MoveManager<false>;
 public:
 	static constexpr MoveScore MS_TT_BONUS = 1500000000;
 	static constexpr MoveScore MS_COUNTERMOVE_BONUS = 300000;
@@ -56,6 +59,8 @@ public:
 	inline void setTimeLimit(int);
 	// Initialization (should be done before creation of any Engine instance)
 	static void initialize(void);
+	// Clear position and search info (everything except TT)
+	void clear(void);
 	// Reset game
 	void reset(void);
 	// Update game state
@@ -70,7 +75,9 @@ public:
 	// Main AI function
 	// Returns position score and outputs the best move to the reference parameter
 	Score AIMove(Move&, Depth = DEPTH_MAX, Depth& = _dummyDepth, int& = _dummyInt, int& = _dummyInt);
-	// Performance test
+	// Performance test (if MG_LEGAL is true, all moves are tested for legality
+	// during generation and promotions to bishops and rooks are included)
+	template<bool MG_LEGAL = false>
 	int perft(Depth);
 	// Convert a move from SAN notation to Move. It should be valid in current position
 	Move moveFromSAN(const std::string&);

@@ -43,6 +43,7 @@ void MoveList::add(Move move, Score score)
 //============================================================
 Move MoveList::getNextBest(void)
 {
+	assert(moveIdx <= moveCnt);
 	if (moveIdx == moveCnt)
 		return MOVE_NONE;
 	// One selection sort iteration, which reorders the rest moves in a manner that the best one becomes the current

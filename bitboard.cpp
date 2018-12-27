@@ -29,7 +29,7 @@ Magic mBishopMagics[SQUARE_CNT];
 Key ZobristPSQ[COLOR_CNT][PIECETYPE_CNT][SQUARE_CNT];
 Key ZobristCR[CR_BLACK_OOO + 1];
 Key ZobristEP[FILE_CNT];
-Key ZobristSide;
+Key ZobristBlackSide;
 
 //============================================================
 // Local namespace
@@ -62,7 +62,7 @@ void initZobrist(void)
 	static constexpr Bitboard PRNG_MUL = 6364136223846930515, PRNG_ADD = 14426950408963407454,
 		PRNG_MOD = 4586769527459239595;
 	PRNGen lcg(1, PRNG_MUL, PRNG_ADD, PRNG_MOD);
-	ZobristSide = lcg.getNext();
+	ZobristBlackSide = lcg.getNext();
 	ZobristCR[CR_WHITE_OO] = lcg.getNext();
 	ZobristCR[CR_WHITE_OOO] = lcg.getNext();
 	ZobristCR[CR_BLACK_OO] = lcg.getNext();

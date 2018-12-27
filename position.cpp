@@ -6,31 +6,40 @@
 #include "position.h"
 
 //============================================================
-// Reset game
+// Clear game state
 //============================================================
-void Position::reset(void)
+void Position::clear(void)
 {
-	// Reset position info
-	turn = WHITE;
+	turn = NULL_COLOR;
 	gamePly = 0;
 	psqScore = 0;
 	info.keyZobrist = 0;
 	info.rule50 = 0;
 	info.justCaptured = PT_NULL;
 	info.epSquare = Sq::NONE;
-	info.castlingRight = CR_ALL;
-	// Reset bitboards
+	info.castlingRight = CR_NULL;
+	// Clear bitboards
 	for (Side c = 0; c < COLOR_CNT; ++c)
 		colorBB[c] = 0;
 	for (PieceType pt = PT_ALL; pt <= KING; ++pt)
 		pieceTypeBB[pt] = 0;
-	// Reset piece lists
+	// Clear piece lists
 	for (Side c = 0; c < COLOR_CNT; ++c)
 		for (PieceType pt = PT_ALL; pt <= KING; ++pt)
 			pieceCount[c][pt] = 0;
-	// Reset board
+	// Clear board
 	for (Square sq = Sq::A1; sq <= Sq::H8; ++sq)
 		board[sq] = PIECE_NULL;
+}
+
+//============================================================
+// Reset game
+//============================================================
+void Position::reset(void)
+{
+	// Clear position info
+	clear();
+	// Reset starting position
 	// Pawns
 	for (Square sq = Sq::A2; sq < Sq::A3; ++sq)
 		putPiece(sq, WHITE, PAWN);
@@ -57,6 +66,12 @@ void Position::reset(void)
 	// King
 	putPiece(Sq::E1, WHITE, KING);
 	putPiece(Sq::E8, BLACK, KING);
+	// Misc
+	turn = WHITE;
+	info.castlingRight = CR_ALL;
+	info.keyZobrist ^=
+		ZobristCR[CR_WHITE_OO] ^ ZobristCR[CR_WHITE_OOO] ^
+		ZobristCR[CR_BLACK_OO] ^ ZobristCR[CR_BLACK_OOO];
 }
 
 //============================================================
@@ -117,7 +132,16 @@ void Position::doMove(Move move)
 		if (type == MT_EN_PASSANT)
 			removePiece(to + (turn == WHITE ? Sq::D_DOWN : Sq::D_UP));
 		else
+		{
+			if (info.justCaptured == ROOK) // Check for rook here is redundant, but good for performance
+			{
+				if (to == relSquare(Sq::A1, opposite(turn)))
+					removeCastlingRight(makeCastling(opposite(turn), OOO));
+				else if (to == relSquare(Sq::H1, opposite(turn)))
+					removeCastlingRight(makeCastling(opposite(turn), OO));
+			}
 			removePiece(to);
+		}
 		info.rule50 = 0;
 	}
 	else if (from_pt == PAWN)
@@ -132,7 +156,10 @@ void Position::doMove(Move move)
 	else
 		++info.rule50;
 	if (from_pt == KING)
-		if (turn == WHITE)
+	{
+		removeCastlingRight(makeCastling(turn, OO));
+		removeCastlingRight(makeCastling(turn, OOO));
+		/*if (turn == WHITE)
 		{
 			if (info.castlingRight & CR_WHITE_OO)
 				info.castlingRight &= ~CR_WHITE_OO, info.keyZobrist ^= ZobristCR[CR_WHITE_OO];
@@ -145,9 +172,14 @@ void Position::doMove(Move move)
 				info.castlingRight &= ~CR_BLACK_OO, info.keyZobrist ^= ZobristCR[CR_BLACK_OO];
 			if (info.castlingRight & CR_BLACK_OOO)
 				info.castlingRight &= ~CR_BLACK_OOO, info.keyZobrist ^= ZobristCR[CR_BLACK_OOO];
-		}
+		}*/
+	}
 	else if (from_pt == ROOK)
-		if (turn == WHITE)
+		if (from == relSquare(Sq::A1, turn))
+			removeCastlingRight(makeCastling(turn, OOO));
+		else if (from == relSquare(Sq::H1, turn))
+			removeCastlingRight(makeCastling(turn, OO));
+		/*if (turn == WHITE)
 		{
 			if (from == Sq::A1 && (info.castlingRight & CR_WHITE_OOO))
 				info.castlingRight &= ~CR_WHITE_OOO, info.keyZobrist ^= ZobristCR[CR_WHITE_OOO];
@@ -157,7 +189,7 @@ void Position::doMove(Move move)
 		else if (from == Sq::A8 && (info.castlingRight & CR_BLACK_OOO))
 			info.castlingRight &= ~CR_BLACK_OOO, info.keyZobrist ^= ZobristCR[CR_BLACK_OOO];
 		else if (from == Sq::H8 && (info.castlingRight & CR_BLACK_OO))
-			info.castlingRight &= ~CR_BLACK_OO, info.keyZobrist ^= ZobristCR[CR_BLACK_OO];
+			info.castlingRight &= ~CR_BLACK_OO, info.keyZobrist ^= ZobristCR[CR_BLACK_OO];*/
 	if (type == MT_PROMOTION)
 	{
 		putPiece(to, turn, move.promotion());
@@ -171,7 +203,7 @@ void Position::doMove(Move move)
 		movePiece(Square(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('h') : fileFromAN('a')),
 			Square(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('f') : fileFromAN('d')));
 	}
-	info.keyZobrist ^= ZobristSide;
+	info.keyZobrist ^= ZobristBlackSide;
 	turn = opposite(turn);
 	++gamePly;
 }
@@ -412,11 +444,12 @@ void Position::generateMoves(MoveList& moves)
 
 //============================================================
 // Load position from a given stream in FEN notation
+// (bool parameter says whether to omit move counters)
 //============================================================
-void Position::loadPosition(std::istream& istr)
+void Position::loadPosition(std::istream& istr, bool omitCounters)
 {
-	// Reset current game state
-	reset();
+	// Clear current game state
+	clear();
 	// Piece placement information
 	char delim, piece;
 	for (int rank = 7; rank >= 0; --rank)
@@ -434,8 +467,7 @@ void Position::loadPosition(std::istream& istr)
 				continue;
 			}
 			const PieceType pieceType = pieceTypeFromFEN(toupper(piece));
-			board[Square(rank, file)] = makePiece(
-				isupper(piece) ? WHITE : BLACK, pieceType);
+			putPiece(Square(rank, file), isupper(piece) ? WHITE : BLACK, pieceType);
 		}
 		if (rank)
 		{
@@ -451,7 +483,7 @@ void Position::loadPosition(std::istream& istr)
 	if (side == 'w')
 		turn = WHITE;
 	else if (side == 'b')
-		turn = BLACK;
+		turn = BLACK, info.keyZobrist ^= ZobristBlackSide;
 	else
 		throw std::runtime_error("Invalid side to move identifier "
 			+ std::string({ side }));
@@ -465,8 +497,10 @@ void Position::loadPosition(std::istream& istr)
 			if (castlingSide != 'k' && castlingSide != 'q')
 				throw std::runtime_error("Invalid castling right token "
 					+ std::string({ castlingRight }));
-			info.castlingRight |= makeCastling(isupper(castlingRight) ? WHITE : BLACK,
+			const CastlingRight crMask = makeCastling(isupper(castlingRight) ? WHITE : BLACK,
 				castlingSide == 'k' ? OO : OOO);
+			info.castlingRight |= crMask;
+			info.keyZobrist ^= ZobristCR[crMask];
 		} while ((castlingRight = istr.get()) != ' ');
 	// En passant information
 	char epFile;
@@ -480,19 +514,23 @@ void Position::loadPosition(std::istream& istr)
 			throw std::runtime_error("Invalid en-passant square "
 				+ std::string({ epFile, rankToAN(epRank) }));
 		info.epSquare = Square(fileFromAN(epFile), epRank);
+		info.keyZobrist ^= ZobristEP[fileFromAN(epFile)];
 	}
-	// Halfmove counter (for 50 move draw rule) information
-	istr >> info.rule50;
-	if (info.rule50 < 0 || 50 < info.rule50)
-		throw std::runtime_error("Rule-50 halfmove counter"
-			+ std::to_string(info.rule50) + " is invalid ");
-	// Counter of full moves (starting at 1) information
-	int fullMoves;
-	istr >> fullMoves;
-	if (fullMoves <= 0)
-		throw std::runtime_error("Invalid full move counter "
-			+ std::to_string(fullMoves));
-	gamePly = (fullMoves - 1) * 2 + (side == 'b' ? 1 : 0);
+	if (!omitCounters)
+	{
+		// Halfmove counter (for 50 move draw rule) information
+		istr >> info.rule50;
+		if (info.rule50 < 0 || 50 < info.rule50)
+			throw std::runtime_error("Rule-50 halfmove counter"
+				+ std::to_string(info.rule50) + " is invalid ");
+		// Counter of full moves (starting at 1) information
+		int fullMoves;
+		istr >> fullMoves;
+		if (fullMoves <= 0)
+			throw std::runtime_error("Invalid full move counter "
+				+ std::to_string(fullMoves));
+		gamePly = (fullMoves - 1) * 2 + (side == 'b' ? 1 : 0);
+	}
 }
 
 //============================================================
