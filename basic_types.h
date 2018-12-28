@@ -450,6 +450,9 @@ public:
 	{
 		return rankToAN(rank());
 	}
+	// Shifts square to a given direction given number of times (assumes one of Sq::D_'s)
+	// Recognizes getting outside of the board and sets square to NONE in these cases
+	constexpr inline Square& shiftD(Square d, int cnt = 1) noexcept;
 	inline std::string toAN(void) const
 	{
 		return { (char)(file() + 'a'), (char)(rank() + '1') };
@@ -479,6 +482,18 @@ inline int8_t distance(Square sq1, Square sq2) noexcept
 constexpr inline Square relSquare(Square sq, Side c) noexcept
 {
 	return sq.relativeTo(c);
+}
+// Shifts square to a given direction given number of times (assumes one of Sq::D_'s)
+// Recognizes getting outside of the board and sets square to NONE in these cases
+constexpr inline Square& Square::shiftD(Square d, int cnt) noexcept
+{
+	while (cnt-- > 0)
+		if (isValid())
+		{
+			const Square nsq = *this + d;
+			*this = (nsq.isValid() && distance(nsq, *this) <= 2 ? nsq : Sq::NONE);
+		}
+	return *this;
 }
 
 class Move

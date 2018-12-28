@@ -11,7 +11,7 @@
 //============================================================
 template<bool LEGAL>
 MoveManager<LEGAL>::MoveManager(Engine& eng, Move ttMove)
-	: eng(eng), ttMove(ttMove), state(MM_TTMOVE), legalTT(false)
+	: eng(eng), ttMove(ttMove), state(MM_TTMOVE)
 {}
 
 //============================================================
@@ -27,6 +27,7 @@ Move MoveManager<LEGAL>::next(void)
 		state = MM_GENMOVES;
 		if (eng.isPseudoLegal(ttMove)) // we check this because there could be hash collision
 		{
+#ifdef _DEBUG
 			eng.generatePseudolegalMoves(moveList);
 			bool foundTT = false;
 			for (int i = 0; i < moveList.count(); ++i)
@@ -37,6 +38,7 @@ Move MoveManager<LEGAL>::next(void)
 				}
 			assert(foundTT);
 			moveList.clear();
+#endif
 			if constexpr (LEGAL)
 			{
 				if (eng.isLegal(ttMove))
@@ -45,6 +47,21 @@ Move MoveManager<LEGAL>::next(void)
 			else
 				return ttMove;
 		}
+#ifdef _DEBUG
+		else
+		{
+			eng.generatePseudolegalMoves(moveList);
+			bool foundTT = false;
+			for (int i = 0; i < moveList.count(); ++i)
+				if (moveList[i].move == ttMove)
+				{
+					foundTT = true;
+					break;
+				}
+			assert(!foundTT);
+			moveList.clear();
+		}
+#endif
 		// [[fallthrough]] // if ttMove is inappropriate, we should proceed
 	case MM_GENMOVES:
 		if constexpr (LEGAL)

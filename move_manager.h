@@ -32,7 +32,6 @@ private:
 	MMState state;
 	Move ttMove;
 	MoveList moveList;
-	bool legalTT;
 };
 
 #endif

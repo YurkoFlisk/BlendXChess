@@ -103,7 +103,7 @@ inline Bitboard magicBishopAttacks(Square from, Bitboard occupancy)
 
 // Shifts a bitboard in a direction specified by one of the D_ variables
 template<SquareRaw DELTA>
-constexpr inline Bitboard shiftD(Bitboard bb) noexcept
+constexpr inline Bitboard bbShiftD(Bitboard bb) noexcept
 {
 	using namespace Sq;
 	static_assert(DELTA == D_LEFT || DELTA == D_RIGHT || DELTA == D_UP || DELTA == D_DOWN ||

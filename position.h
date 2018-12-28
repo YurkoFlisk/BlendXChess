@@ -188,7 +188,7 @@ inline void Position::movePiece(Square from, Square to)
 	const Side c = getPieceSide(board[from]);
 	const PieceType pt = getPieceType(board[from]);
 	const Bitboard fromToBB = bbSquare[from] ^ bbSquare[to];
-	assert(getPieceSide(board[from]) == turn);
+	assert(board[from] != PIECE_NULL);
 	assert(board[to] == PIECE_NULL);
 	colorBB[c] ^= fromToBB;
 	pieceTypeBB[pt] ^= fromToBB;

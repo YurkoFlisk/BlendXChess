@@ -194,7 +194,7 @@ bool Engine::DoMove(const std::string& strMove)
 			default: return false;
 			}
 		else if (getPieceType(board[from]) == PAWN && distance(from, to) == 2
-			&& board[to] == PIECE_NULL && rfrom == relRank(2, turn))
+			&& board[to] == PIECE_NULL && rto == relRank(2, turn))
 			move = Move(from, to, MT_EN_PASSANT);
 		else
 			move = Move(from, to);

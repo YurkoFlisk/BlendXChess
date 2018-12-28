@@ -335,8 +335,8 @@ void Position::generatePawnMoves(MoveList& moves)
 	if (MG_TYPE & MG_CAPTURES)
 	{
 		// Left and right pawn capture moves (including promotions)
-		revealPawnMoves<TURN, LEGAL>(shiftD<LEFT_CAPT>(pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], LEFT_CAPT, moves);
-		revealPawnMoves<TURN, LEGAL>(shiftD<RIGHT_CAPT>(pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], RIGHT_CAPT, moves);
+		revealPawnMoves<TURN, LEGAL>(bbShiftD<LEFT_CAPT>(pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], LEFT_CAPT, moves);
+		revealPawnMoves<TURN, LEGAL>(bbShiftD<RIGHT_CAPT>(pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], RIGHT_CAPT, moves);
 		// En passant
 		if ((MG_TYPE & MG_CAPTURES) && info.epSquare != Sq::NONE)
 		{
@@ -352,10 +352,10 @@ void Position::generatePawnMoves(MoveList& moves)
 	if (MG_TYPE & MG_NON_CAPTURES)
 	{
 		// One-step pawn forward moves (including promotions)
-		Bitboard destBB = shiftD<FORWARD>(pieceBB(TURN, PAWN)) & emptyBB();
+		Bitboard destBB = bbShiftD<FORWARD>(pieceBB(TURN, PAWN)) & emptyBB();
 		revealPawnMoves<TURN, LEGAL>(destBB, FORWARD, moves);
 		// Two-step pawn forward moves (here we can't promote)
-		destBB = shiftD<FORWARD>(destBB & BB_REL_RANK_3) & emptyBB();
+		destBB = bbShiftD<FORWARD>(destBB & BB_REL_RANK_3) & emptyBB();
 		while (destBB)
 		{
 			const Square to = popLSB(destBB);

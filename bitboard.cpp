@@ -226,8 +226,8 @@ void initBB(void)
 	// Initialize in-between (excluding endpoints) bitboards
 	for (Square sq1 = A1; sq1 <= H8; ++sq1)
 		for (int d = 0; d < 8; ++d)
-			for (Square sq2 = sq1 + kingStep[d] * 2; sq2.isValid(); ++sq2)
-				for (Square bsq = sq1 + kingStep[d]; bsq < sq2; ++bsq)
+			for (Square sq2 = sq1.shiftD(kingStep[d], 2); sq2.isValid(); sq2.shiftD(kingStep[d]))
+				for (Square bsq = sq1 + kingStep[d]; bsq != sq2; bsq.shiftD(kingStep[d]))
 					bbBetween[sq1][sq2] |= bbSquare[bsq];
 	// Initialize bitboards for castling's inners
 	for (Side c = WHITE; c <= BLACK; ++c)
