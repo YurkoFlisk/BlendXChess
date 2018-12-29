@@ -372,6 +372,11 @@ void Position::generatePawnMoves(MoveList& moves)
 template<Side TURN, bool LEGAL>
 void Position::generateEvasions(MoveList& moves)
 {
+	// TURN is a template parameter and is used only for optimization purposes, so it should be equal to turn
+	assert(TURN == turn);
+	// Since we are generating evasions, we should be in check
+	assert(isInCheck());
+
 	generateMoves<TURN, MG_ALL, LEGAL>(moves); // !! TEMPORARILY !!
 }
 

@@ -691,8 +691,8 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 	for (Depth searchDepth = 1; searchDepth <= depth; ++searchDepth)
 	{
 		// Best move and score of current iteration
-		int curBestScore(SCORE_ZERO);
-		Move curBestMove = bestMove;
+		int curBestScore(bestScore);
+		Move curBestMove(bestMove);
 		// Aspiration windows
 		int delta = 25, alpha = curBestScore - delta, beta = curBestScore + delta;
 		while (true)

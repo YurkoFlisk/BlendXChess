@@ -111,11 +111,18 @@ int main(void)
 		while (true)
 		{
 			if (eng.getTurn() == userTurn)
+			{
 				do
 				{
-					cout << "Enter your move please: ";
+					cout << "Enter your move please (Re - restart game): ";
 					cin >> strMove;
-				} while (!eng.DoMove(strMove));
+				} while (!(strMove == "Re" || eng.DoMove(strMove)));
+				if (strMove == "Re")
+				{
+					cout << "Restarting..." << endl;
+					eng.reset();
+				}
+			}
 			else
 			{
 				auto st = chrono::high_resolution_clock::now();
