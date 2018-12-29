@@ -59,7 +59,7 @@ Move MoveList::getNextBest(void)
 //============================================================
 void MoveList::sort(void)
 {
-	std::sort(moves, moves + moveCnt, [](const MLNode& ml1,
+	std::stable_sort(moves, moves + moveCnt, [](const MLNode& ml1,
 		const MLNode& ml2) { return ml1.score > ml2.score; });
 }
 

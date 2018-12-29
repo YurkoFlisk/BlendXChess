@@ -550,9 +550,9 @@ void Engine::scoreMoves(MoveList& moveList)
 		else
 		{
 			assert(searchPly == 0 || prevMoves[searchPly - 1] != MOVE_NONE);
-			if (searchPly > 0 && move == countermoves[prevMoves[searchPly - 1].from()]
+			/*if (searchPly > 0 && move == countermoves[prevMoves[searchPly - 1].from()]
 				[prevMoves[searchPly - 1].to()]) // searchPly is NOT 1-biased where it is called
-				moveNode.score += MS_COUNTERMOVE_BONUS;
+				moveNode.score += MS_COUNTERMOVE_BONUS;*/
 			for (auto killerMove : killers[searchPly])
 				if (move == killerMove)
 				{
