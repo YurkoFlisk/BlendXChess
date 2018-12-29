@@ -542,7 +542,7 @@ void Engine::scoreMoves(MoveList& moveList)
 	{
 		MLNode& moveNode = moveList[i];
 		const Move& move = moveNode.move;
-		moveNode.score = 0/*history[move.from()][move.to()]*/;
+		moveNode.score = history[move.from()][move.to()];
 		if (isCaptureMove(move))
 			moveNode.score += MS_CAPTURE_BONUS_VICTIM[getPieceType(board[move.to()])]
 				+ MS_CAPTURE_BONUS_ATTACKER[getPieceType(board[move.from()])];
@@ -550,9 +550,9 @@ void Engine::scoreMoves(MoveList& moveList)
 		else
 		{
 			assert(searchPly == 0 || prevMoves[searchPly - 1] != MOVE_NONE);
-			/*if (searchPly > 0 && move == countermoves[prevMoves[searchPly - 1].from()]
+			if (searchPly > 0 && move == countermoves[prevMoves[searchPly - 1].from()]
 				[prevMoves[searchPly - 1].to()]) // searchPly is NOT 1-biased where it is called
-				moveNode.score += MS_COUNTERMOVE_BONUS;*/
+				moveNode.score += MS_COUNTERMOVE_BONUS;
 			for (auto killerMove : killers[searchPly])
 				if (move == killerMove)
 				{

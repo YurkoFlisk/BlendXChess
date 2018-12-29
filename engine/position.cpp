@@ -4,6 +4,7 @@
 //============================================================
 
 #include "position.h"
+#include <algorithm>
 
 //============================================================
 // Clear game state
@@ -440,6 +441,18 @@ void Position::generateMoves(MoveList& moves)
 		from = pieceSq[turn][QUEEN][i];
 		revealMoves<TURN, LEGAL>(from, magicBishopAttacks(from, occupiedBB()) & target, moves);
 	}
+	// For debugging purposes this is sometimes needed to make move
+	// ordering independent of current order of pieces in piece lists
+	// In these cases it may also be useful to disable history and countermove heuristics
+#ifdef _DEBUG
+	if constexpr (SORT_GENMOVES_ON_DEBUG)
+	{
+		std::sort(moves.begin(), moves.end(),
+			[](const MLNode& ml1, const MLNode& ml2) {
+			return ml1.move.raw() < ml2.move.raw();
+		});
+	}
+#endif
 }
 
 //============================================================

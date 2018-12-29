@@ -30,6 +30,9 @@ public:
 	static constexpr int MAX_MOVECNT = 218;
 	// Constructor
 	MoveList(void);
+	// Begin/end
+	inline MLNode* begin(void);
+	inline MLNode* end(void);
 	// Getters
 	inline int count(void) const;
 	// Inline functions
@@ -57,6 +60,16 @@ private:
 //============================================================
 // Implementation of inline functions
 //============================================================
+
+inline MLNode* MoveList::begin(void)
+{
+	return moves;
+}
+
+inline MLNode* MoveList::end(void) 
+{
+	return moves + moveCnt;
+}
 
 inline int MoveList::count(void) const
 {

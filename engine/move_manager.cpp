@@ -68,7 +68,7 @@ Move MoveManager<LEGAL>::next(void)
 			eng.generateLegalMoves(moveList);
 		else
 			eng.generatePseudolegalMoves(moveList);
-		eng.sortMoves(moveList);
+		eng.scoreMoves(moveList);
 		state = MM_GENERATED;
 		// [[fallthrough]]
 	case MM_GENERATED:
@@ -80,7 +80,7 @@ Move MoveManager<LEGAL>::next(void)
 	default:
 		assert(false); // Should not occur
 	}
-	return MOVE_NONE;
+	return MOVE_NONE; // Should not occur
 }
 
 //============================================================

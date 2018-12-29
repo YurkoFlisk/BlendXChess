@@ -12,6 +12,10 @@
 #include "evaluate.h"
 #include "movelist.h"
 
+#if defined(_DEBUG) | defined(DEBUG)
+constexpr bool SORT_GENMOVES_ON_DEBUG = false; // rarely needed
+#endif
+
 //============================================================
 // Struct for storing some information about position
 // Includes data that is changed during move doing-undoing and thus needs to be preserved
