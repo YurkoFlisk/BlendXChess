@@ -103,7 +103,7 @@ protected:
 	// Whether the move is a capture
 	inline bool isCaptureMove(Move) const;
 	// (Re-)score moves and sort
-	inline void sortMoves(MoveList&, Move = MOVE_NONE);
+	inline void sortMoves(MoveList&);
 	// Helpers for ply-adjustment of scores (mate ones) when (extracted from)/(inserted to) a transposition table
 	inline Score scoreToTT(Score) const;
 	inline Score scoreFromTT(Score) const;
@@ -125,7 +125,7 @@ protected:
 	// Update killer moves
 	void updateKillers(int, Move);
 	// Move scoring
-	void scoreMoves(MoveList&, Move = MOVE_NONE);
+	void scoreMoves(MoveList&);
 	// Previous moves (for engine purposes)
 	Move prevMoves[MAX_SEARCH_PLY];
 	// Transposition table
@@ -185,10 +185,10 @@ inline bool Engine::isCaptureMove(Move move) const
 	return board[move.to()] != PIECE_NULL;
 }
 
-inline void Engine::sortMoves(MoveList& ml, Move ttMove)
+inline void Engine::sortMoves(MoveList& ml)
 {
-	ml.reset();
-	scoreMoves(ml, ttMove);
+	// ml.reset();
+	scoreMoves(ml);
 	ml.sort();
 }
 
