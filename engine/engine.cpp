@@ -542,7 +542,7 @@ void Engine::scoreMoves(MoveList& moveList)
 	{
 		MLNode& moveNode = moveList[i];
 		const Move& move = moveNode.move;
-		moveNode.score = history[move.from()][move.to()];
+		moveNode.score = 0/*history[move.from()][move.to()]*/;
 		if (isCaptureMove(move))
 			moveNode.score += MS_CAPTURE_BONUS_VICTIM[getPieceType(board[move.to()])]
 				+ MS_CAPTURE_BONUS_ATTACKER[getPieceType(board[move.from()])];
