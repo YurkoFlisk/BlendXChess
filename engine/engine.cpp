@@ -536,13 +536,18 @@ Score Engine::SEECapture(Square from, Square to, Side by)
 //============================================================
 // Scores each move from moveList
 //============================================================
-void Engine::scoreMoves(MoveList& moveList)
+void Engine::scoreMoves(MoveList& moveList, Move ttMove)
 {
 	for (int i = 0; i < moveList.count(); ++i)
 	{
 		MLNode& moveNode = moveList[i];
 		const Move& move = moveNode.move;
 		moveNode.score = history[move.from()][move.to()];
+		if (move == ttMove)
+		{
+			moveNode.score = MS_TT_BONUS;
+			continue;
+		}
 		if (isCaptureMove(move))
 			moveNode.score += MS_CAPTURE_BONUS_VICTIM[getPieceType(board[move.to()])]
 				+ MS_CAPTURE_BONUS_ATTACKER[getPieceType(board[move.from()])];
@@ -693,16 +698,20 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 		// Best move and score of current iteration
 		int curBestScore(SCORE_ZERO);
 		Move curBestMove = bestMove;
+		MoveList moveList;
+		generateLegalMoves(moveList);
+		sortMoves(moveList, curBestMove);
 		// Aspiration windows
 		int delta = 25, alpha = curBestScore - delta, beta = curBestScore + delta;
 		while (true)
 		{
 			// Initialize move picking manager
-			MoveManager<true> moveManager(*this, curBestMove);
+			// MoveManager<true> moveManager(*this, curBestMove);
+			moveList.reset();
 			curBestScore = alpha;
 			// Test every move and choose the best one
 			bool pvSearch = true;
-			while ((move = moveManager.next()) != MOVE_NONE)
+			while ((move = moveList.getNextBest()) != MOVE_NONE)
 			{
 				// Do move
 				doMove(move);

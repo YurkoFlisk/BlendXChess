@@ -1,11 +1,17 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.24720.0
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.168
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BlendXChess", "ChessEngine.vcxproj", "{F7BE2629-1482-4011-9C3A-3D01A426E258}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ChessEngine", "ChessEngine.vcxproj", "{F7BE2629-1482-4011-9C3A-3D01A426E258}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "engine", "engine\engine.vcxitems", "{1B6C37E7-0B0F-4C9F-B8BA-B228CF0A2535}"
 EndProject
 Global
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		engine\engine.vcxitems*{1b6c37e7-0b0f-4c9f-b8ba-b228cf0a2535}*SharedItemsImports = 9
+		engine\engine.vcxitems*{f7be2629-1482-4011-9c3a-3d01a426e258}*SharedItemsImports = 4
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
@@ -24,5 +30,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A6E36E87-3F58-4F7C-866D-7C1B99EA503F}
 	EndGlobalSection
 EndGlobal

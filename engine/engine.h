@@ -38,6 +38,7 @@ class Engine
 	friend class MoveManager<true>;
 	friend class MoveManager<false>;
 public:
+	static constexpr int MAX_KILLERS_CNT = 3;
 	static constexpr MoveScore MS_TT_BONUS = 1500000000;
 	static constexpr MoveScore MS_COUNTERMOVE_BONUS = 300000;
 	static constexpr MoveScore MS_SEE_MULT = 1500000 / 100;
@@ -102,7 +103,7 @@ protected:
 	// Whether the move is a capture
 	inline bool isCaptureMove(Move) const;
 	// (Re-)score moves and sort
-	inline void sortMoves(MoveList&);
+	inline void sortMoves(MoveList&, Move = MOVE_NONE);
 	// Helpers for ply-adjustment of scores (mate ones) when (extracted from)/(inserted to) a transposition table
 	inline Score scoreToTT(Score) const;
 	inline Score scoreFromTT(Score) const;
@@ -124,7 +125,7 @@ protected:
 	// Update killer moves
 	void updateKillers(int, Move);
 	// Move scoring
-	void scoreMoves(MoveList&);
+	void scoreMoves(MoveList&, Move = MOVE_NONE);
 	// Previous moves (for engine purposes)
 	Move prevMoves[MAX_SEARCH_PLY];
 	// Transposition table
@@ -184,10 +185,10 @@ inline bool Engine::isCaptureMove(Move move) const
 	return board[move.to()] != PIECE_NULL;
 }
 
-inline void Engine::sortMoves(MoveList& ml)
+inline void Engine::sortMoves(MoveList& ml, Move ttMove)
 {
-	// ml.reset();
-	scoreMoves(ml);
+	ml.reset();
+	scoreMoves(ml, ttMove);
 	ml.sort();
 }
 

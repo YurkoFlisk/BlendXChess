@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <ItemsProjectGuid>{1b6c37e7-0b0f-4c9f-b8ba-b228cf0a2535}</ItemsProjectGuid>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ProjectCapability Include="SourceItemsFromImports" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)basic_types.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)bitboard.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)engine.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)evaluate.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)movelist.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)move_manager.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)position.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)transtable.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)bitboard.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)engine.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)evaluate.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)movelist.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)move_manager.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)position.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)transtable.cpp" />
+  </ItemGroup>
+</Project>

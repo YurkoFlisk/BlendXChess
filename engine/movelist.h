@@ -7,7 +7,6 @@
 #ifndef MOVELIST_H
 #define MOVELIST_H
 #include "basic_types.h"
-#include <algorithm>
 
 //============================================================
 // Struct for storing a move with it's sorting score

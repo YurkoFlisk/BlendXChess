@@ -56,6 +56,7 @@
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="Shared">
+    <Import Project="engine\engine.vcxitems" Label="Shared" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -165,24 +166,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="bitboard.cpp" />
-    <ClCompile Include="engine.cpp" />
-    <ClCompile Include="evaluate.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="movelist.cpp" />
-    <ClCompile Include="move_manager.cpp" />
-    <ClCompile Include="position.cpp" />
-    <ClCompile Include="transtable.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="basic_types.h" />
-    <ClInclude Include="bitboard.h" />
-    <ClInclude Include="engine.h" />
-    <ClInclude Include="evaluate.h" />
-    <ClInclude Include="movelist.h" />
-    <ClInclude Include="move_manager.h" />
-    <ClInclude Include="position.h" />
-    <ClInclude Include="transtable.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

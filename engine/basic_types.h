@@ -27,7 +27,7 @@ typedef uint16_t MoveRaw;
 constexpr int8_t FILE_CNT = 8, FILE_MIN = 0, FILE_MAX = 7, RANK_CNT = 8, RANK_MIN = 0,
 	RANK_MAX = 7, DIAG_CNT = 15, SQUARE_CNT = FILE_CNT * RANK_CNT,
 	COLOR_CNT = 2, PIECETYPE_CNT = 7, MAX_PIECES_OF_ONE_TYPE = 9, CASTLING_SIDE_CNT = 2;
-constexpr int16_t MAX_GAME_PLY = 1024, MAX_SEARCH_PLY = 50, MAX_KILLERS_CNT = 3;
+constexpr int16_t MAX_GAME_PLY = 1024, MAX_SEARCH_PLY = 50;
 
 //============================================================
 // Namespace containing constants defining structure of Move presentation
