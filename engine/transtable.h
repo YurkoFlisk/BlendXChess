@@ -27,11 +27,16 @@ struct TTEntry
 	inline void store(Key, Depth, Bound, Score, Move, int16_t);
 };
 
-constexpr int TTBUCKET_SIZE = 3;
-constexpr int TTINDEX_BITS = 20;
-constexpr int TTBUCKET_COUNT = 1 << TTINDEX_BITS;
-constexpr Key TTINDEX_MASK = TTBUCKET_COUNT - 1;
-extern int fr;
+#ifdef ENGINE_DEBUG
+constexpr bool TT_COUNT_FREE_ENTRIES = true;
+#else
+constexpr bool TT_COUNT_FREE_ENTRIES = false;
+#endif
+constexpr int TTBUCKET_ENTRIES = 3;
+constexpr int TT_INDEX_BITS = 20;
+constexpr int TT_BUCKET_COUNT = 1 << TT_INDEX_BITS;
+constexpr Key TT_INDEX_MASK = TT_BUCKET_COUNT - 1;
+extern int ttFreeEntries; // !! Only for singleton TT (this approach is maybe temporary) !!
 
 //============================================================
 // Bucket of a transposition table, stores several entries
@@ -45,7 +50,7 @@ public:
 	// Probe the given key and return nullptr if there's not such entry or a pointer to one if it's found
 	const TTEntry* probe(Key) const;
 private:
-	TTEntry entries[TTBUCKET_SIZE];
+	TTEntry entries[TTBUCKET_ENTRIES];
 };
 
 //============================================================
@@ -62,7 +67,7 @@ public:
 	// Clear transposition table;
 	inline void clear(void);
 private:
-	TTBucket table[TTBUCKET_COUNT];
+	TTBucket table[TT_BUCKET_COUNT];
 };
 
 //============================================================
@@ -76,17 +81,19 @@ inline void TTEntry::store(Key k, Depth d, Bound b, Score s, Move m, int16_t a)
 
 inline void TranspositionTable::store(Key key, Depth depth, Bound bound, Score score, Move move, int16_t age)
 {
-	table[key & TTINDEX_MASK].store(key, depth, bound, score, move, age);
+	table[key & TT_INDEX_MASK].store(key, depth, bound, score, move, age);
 }
 
 inline const TTEntry* TranspositionTable::probe(Key key) const
 {
-	return table[key & TTINDEX_MASK].probe(key);
+	return table[key & TT_INDEX_MASK].probe(key);
 }
 
 inline void TranspositionTable::clear(void)
 {
-	memset(table, 0, sizeof(table)); // TODO maybe sometimes this is too slow and reduntant?
+	// TODO maybe sometimes this is too slow and reduntant (probably no)?
+	memset(table, 0, sizeof(table));
+	ttFreeEntries = TT_BUCKET_COUNT * TTBUCKET_ENTRIES;
 }
 
 #endif

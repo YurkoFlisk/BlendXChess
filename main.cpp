@@ -24,11 +24,11 @@ int main(void)
 	Move cpuMove;
 	string strMove, path, perft;
 	eng.reset();
-#ifndef _DEBUG
+#ifndef ENGINE_DEBUG
 	for (int i = 1; i <= 5; ++i)
 	{
 		auto st = chrono::high_resolution_clock::now();
-		cout << eng.perft(i);
+		cout << eng.perft(i); // perft<true>
 		auto en = chrono::high_resolution_clock::now();
 		cout << " Perft("<< i << ") on initial position is " << chrono::duration_cast<
 			chrono::milliseconds>(en - st).count() << "ms\n";
@@ -133,7 +133,7 @@ int main(void)
 				cout << ' ' << nodes << " nodes searched in "
 					<< chrono::duration_cast<chrono::milliseconds>(en - st).count()
 					<< " ms to depth " << (int)resDepth << ". The score is " << score << ". "
-					<< fr << " free slots in TT. " << ttHits << " hits made." << endl;
+					<< ttFreeEntries << " free slots in TT. " << ttHits << " hits made." << endl;
 			}
 			if (eng.getGameState() != GS_ACTIVE)
 			{

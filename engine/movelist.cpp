@@ -71,3 +71,14 @@ MLNode& MoveList::operator[](int idx)
 	assert(0 <= idx && idx < moveCnt);
 	return moves[idx];
 }
+
+//============================================================
+// Get AN representation of moves
+//============================================================
+std::vector<std::string> MoveList::toAN(void) const
+{
+	std::vector<std::string> ret;
+	for (int i = 0; i < moveCnt; ++i)
+		ret.push_back(moves[i].move.toAN());
+	return std::move(ret);
+}

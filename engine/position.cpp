@@ -82,15 +82,16 @@ bool Position::isAttacked(Square sq, Side by) const
 {
 	assert(by == WHITE || by == BLACK);
 	assert(sq.isValid());
-	return	(bbPawnAttack[opposite(by)][sq] &			pieceBB(by, PAWN)) ||
-			(bbKnightAttack[sq] &						pieceBB(by, KNIGHT)) ||
-			(bbKingAttack[sq] &							pieceBB(by, KING)) ||
-			(magicRookAttacks(sq, occupiedBB()) & (		pieceBB(by, ROOK) | pieceBB(by, QUEEN))) ||
-			(magicBishopAttacks(sq, occupiedBB()) & (	pieceBB(by, BISHOP) | pieceBB(by, QUEEN)));
+	return	(bbPawnAttack[opposite(by)][sq] &         pieceBB(by, PAWN)) ||
+			(bbKnightAttack[sq] &                     pieceBB(by, KNIGHT)) ||
+			(bbKingAttack[sq] &                       pieceBB(by, KING)) ||
+			(magicRookAttacks(sq, occupiedBB()) & (   pieceBB(by, ROOK) | pieceBB(by, QUEEN))) ||
+			(magicBishopAttacks(sq, occupiedBB()) & ( pieceBB(by, BISHOP) | pieceBB(by, QUEEN)));
 }
 
 //============================================================
-// Least valuable attacker on given square by given side(king is considered most valuable here)
+// Least valuable attacker on given square by given
+// side (king is considered most valuable here)
 //============================================================
 Square Position::leastAttacker(Square sq, Side by) const
 {
@@ -111,6 +112,20 @@ Square Position::leastAttacker(Square sq, Side by) const
 	if (from = (bbKingAttack[sq] & pieceBB(by, KING)))
 		return getLSB(from);
 	return Sq::NONE;
+}
+
+//============================================================
+// All attackers on given square by given side
+//============================================================
+Bitboard Position::allAttackers(Square sq, Side by) const
+{
+	Bitboard mBA, mRA;
+	return (bbPawnAttack[opposite(by)][sq] & pieceBB(by, PAWN))
+		| (bbKnightAttack[sq] & pieceBB(by, KNIGHT))
+		| (bbKingAttack[sq] & pieceBB(by, KING))
+		| ((mBA = magicBishopAttacks(sq, occupiedBB())) & pieceBB(by, BISHOP))
+		| ((mRA = magicRookAttacks(sq, occupiedBB())) & pieceBB(by, ROOK))
+		| ((mBA | mRA) & pieceBB(by, QUEEN));
 }
 
 //============================================================
@@ -160,37 +175,12 @@ void Position::doMove(Move move)
 	{
 		removeCastlingRight(makeCastling(turn, OO));
 		removeCastlingRight(makeCastling(turn, OOO));
-		/*if (turn == WHITE)
-		{
-			if (info.castlingRight & CR_WHITE_OO)
-				info.castlingRight &= ~CR_WHITE_OO, info.keyZobrist ^= ZobristCR[CR_WHITE_OO];
-			if (info.castlingRight & CR_WHITE_OOO)
-				info.castlingRight &= ~CR_WHITE_OOO, info.keyZobrist ^= ZobristCR[CR_WHITE_OOO];
-		}
-		else
-		{
-			if (info.castlingRight & CR_BLACK_OO)
-				info.castlingRight &= ~CR_BLACK_OO, info.keyZobrist ^= ZobristCR[CR_BLACK_OO];
-			if (info.castlingRight & CR_BLACK_OOO)
-				info.castlingRight &= ~CR_BLACK_OOO, info.keyZobrist ^= ZobristCR[CR_BLACK_OOO];
-		}*/
 	}
 	else if (from_pt == ROOK)
 		if (from == relSquare(Sq::A1, turn))
 			removeCastlingRight(makeCastling(turn, OOO));
 		else if (from == relSquare(Sq::H1, turn))
 			removeCastlingRight(makeCastling(turn, OO));
-		/*if (turn == WHITE)
-		{
-			if (from == Sq::A1 && (info.castlingRight & CR_WHITE_OOO))
-				info.castlingRight &= ~CR_WHITE_OOO, info.keyZobrist ^= ZobristCR[CR_WHITE_OOO];
-			else if (from == Sq::H1 && (info.castlingRight & CR_WHITE_OO))
-				info.castlingRight &= ~CR_WHITE_OO, info.keyZobrist ^= ZobristCR[CR_WHITE_OO];
-		}
-		else if (from == Sq::A8 && (info.castlingRight & CR_BLACK_OOO))
-			info.castlingRight &= ~CR_BLACK_OOO, info.keyZobrist ^= ZobristCR[CR_BLACK_OOO];
-		else if (from == Sq::H8 && (info.castlingRight & CR_BLACK_OO))
-			info.castlingRight &= ~CR_BLACK_OO, info.keyZobrist ^= ZobristCR[CR_BLACK_OO];*/
 	if (type == MT_PROMOTION)
 	{
 		putPiece(to, turn, move.promotion());
@@ -307,13 +297,13 @@ void Position::revealPawnMoves(Bitboard destBB, Square direction, MoveList& move
 // Reveal NON-PAWN moves from attack bitboard (legal if LEGAL == true and pseudolegal otherwise)
 //============================================================
 template<Side TURN, bool LEGAL>
-void Position::revealMoves(Square from, Bitboard attackBB, MoveList& moves)
+void Position::revealMoves(Square from, Bitboard destBB, MoveList& moves)
 {
 	static_assert(TURN == WHITE || TURN == BLACK,
 		"TURN template parameter should be either WHITE or BLACK in this function");
-	while (attackBB)
+	while (destBB)
 	{
-		const Square to = popLSB(attackBB);
+		const Square to = popLSB(destBB);
 		assert(getPieceSide(board[from]) == TURN);
 		assert(getPieceSide(board[to]) != TURN);
 		addMoveIfSuitable<TURN, LEGAL>(Move(from, to), moves);
@@ -321,25 +311,39 @@ void Position::revealMoves(Square from, Bitboard attackBB, MoveList& moves)
 }
 
 //============================================================
-// Generate all pawn moves for given TURN (should match position's turn value)
+// Generate pawn moves. Only to distBB squares if MG_TYPE == MG_EVASIONS
 //============================================================
 template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
-void Position::generatePawnMoves(MoveList& moves)
+void Position::generatePawnMoves(MoveList& moves, Bitboard destBB)
 {
 	static_assert(TURN == WHITE || TURN == BLACK,
 		"TURN template parameter should be either WHITE or BLACK in this function");
-	static constexpr Piece TURN_PAWN =			(TURN == WHITE ? W_PAWN : B_PAWN);
-	static constexpr Square LEFT_CAPT =			(TURN == WHITE ? Sq::D_LU : Sq::D_LD);
-	static constexpr Square RIGHT_CAPT =		(TURN == WHITE ? Sq::D_RU : Sq::D_RD);
-	static constexpr Square FORWARD =			(TURN == WHITE ? Sq::D_UP : Sq::D_DOWN);
-	static constexpr Bitboard BB_REL_RANK_3 =	(TURN == WHITE ? BB_RANK_3 : BB_RANK_6);
-	if (MG_TYPE & MG_CAPTURES)
+	static constexpr Piece TURN_PAWN =        (TURN == WHITE ? W_PAWN : B_PAWN);
+	static constexpr Square LEFT_CAPT =       (TURN == WHITE ? Sq::D_LU : Sq::D_LD);
+	static constexpr Square RIGHT_CAPT =      (TURN == WHITE ? Sq::D_RU : Sq::D_RD);
+	static constexpr Square FORWARD =         (TURN == WHITE ? Sq::D_UP : Sq::D_DOWN);
+	static constexpr Bitboard BB_REL_RANK_3 = (TURN == WHITE ? BB_RANK_3 : BB_RANK_6);
+	if constexpr (MG_TYPE != MG_NON_CAPTURES)
 	{
 		// Left and right pawn capture moves (including promotions)
-		revealPawnMoves<TURN, LEGAL>(bbShiftD<LEFT_CAPT>(pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], LEFT_CAPT, moves);
-		revealPawnMoves<TURN, LEGAL>(bbShiftD<RIGHT_CAPT>(pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], RIGHT_CAPT, moves);
-		// En passant
-		if ((MG_TYPE & MG_CAPTURES) && info.epSquare != Sq::NONE)
+		if constexpr (MG_TYPE == MG_EVASIONS) // destBB is only valid in this case
+		{
+			revealPawnMoves<TURN, LEGAL>(bbShiftD<LEFT_CAPT>(
+				pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)] & destBB, LEFT_CAPT, moves);
+			revealPawnMoves<TURN, LEGAL>(bbShiftD<RIGHT_CAPT>(
+				pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)] & destBB, RIGHT_CAPT, moves);
+		}
+		else
+		{
+			revealPawnMoves<TURN, LEGAL>(bbShiftD<LEFT_CAPT>(
+				pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], LEFT_CAPT, moves);
+			revealPawnMoves<TURN, LEGAL>(bbShiftD<RIGHT_CAPT>(
+				pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)], RIGHT_CAPT, moves);
+		}
+		// En passant. If MG_TYPE == MG_EVASIONS, check was either not double-pawn push (so epSquare is Sq::NONE)
+		// or there is epSquare and we want to consider EP evasion (because we consider this
+		// here, it's also not mandatory to include EP square in destBB in generateMoves)
+		if (info.epSquare != Sq::NONE) // && destBB & bbSquare[info.epSquare] not needed
 		{
 			assert(board[info.epSquare] == PIECE_NULL && board[info.epSquare + FORWARD] == PIECE_NULL);
 			assert(board[info.epSquare - FORWARD] == makePiece(opposite(TURN), PAWN));
@@ -350,13 +354,25 @@ void Position::generatePawnMoves(MoveList& moves)
 				addMoveIfSuitable<TURN, LEGAL>(Move(from, info.epSquare, MT_EN_PASSANT), moves);
 		}
 	}
-	if (MG_TYPE & MG_NON_CAPTURES)
+	if constexpr (MG_TYPE != MG_CAPTURES)
 	{
-		// One-step pawn forward moves (including promotions)
-		Bitboard destBB = bbShiftD<FORWARD>(pieceBB(TURN, PAWN)) & emptyBB();
-		revealPawnMoves<TURN, LEGAL>(destBB, FORWARD, moves);
-		// Two-step pawn forward moves (here we can't promote)
-		destBB = bbShiftD<FORWARD>(destBB & BB_REL_RANK_3) & emptyBB();
+		if constexpr (MG_TYPE == MG_EVASIONS)
+		{
+			// One-step pawn forward moves (including promotions)
+			Bitboard pawnDestBB = bbShiftD<FORWARD>(pieceBB(TURN, PAWN)) & emptyBB();
+			revealPawnMoves<TURN, LEGAL>(destBB & pawnDestBB, FORWARD, moves);
+			// Two-step pawn forward moves (here we can't promote, so don't use revealPawnMoves)
+			destBB &= bbShiftD<FORWARD>(pawnDestBB & BB_REL_RANK_3) & emptyBB();
+		}
+		else // here we can do without new pawnDestBB variable
+		{
+			// One-step pawn forward moves (including promotions)
+			destBB = bbShiftD<FORWARD>(pieceBB(TURN, PAWN)) & emptyBB();
+			revealPawnMoves<TURN, LEGAL>(destBB, FORWARD, moves);
+			// Two-step pawn forward moves (here we can't promote, so don't use revealPawnMoves)
+			destBB = bbShiftD<FORWARD>(destBB & BB_REL_RANK_3) & emptyBB();
+		}
+		// Manually reveal moves from destination bitboard
 		while (destBB)
 		{
 			const Square to = popLSB(destBB);
@@ -367,17 +383,40 @@ void Position::generatePawnMoves(MoveList& moves)
 }
 
 //============================================================
-// Generate all check evasions (legal if LEGAL == true and pseudolegal otherwise)
+// Generate non-pawn and non-king moves. Only to destBB squares irrespectively of MG_TYPE
 //============================================================
 template<Side TURN, bool LEGAL>
-void Position::generateEvasions(MoveList& moves)
+void Position::generateFigureMoves(MoveList& moves, Bitboard destBB)
 {
-	// TURN is a template parameter and is used only for optimization purposes, so it should be equal to turn
-	assert(TURN == turn);
-	// Since we are generating evasions, we should be in check
-	assert(isInCheck());
-
-	generateMoves<TURN, MG_ALL, LEGAL>(moves); // !! TEMPORARILY !!
+	Square from;
+	// Knight moves
+	for (int i = 0; i < pieceCount[TURN][KNIGHT]; ++i)
+	{
+		from = pieceSq[turn][KNIGHT][i];
+		revealMoves<TURN, LEGAL>(from, bbKnightAttack[from] & destBB, moves);
+	}
+	// Rook and partially queen moves
+	for (int i = 0; i < pieceCount[TURN][ROOK]; ++i)
+	{
+		from = pieceSq[turn][ROOK][i];
+		revealMoves<TURN, LEGAL>(from, magicRookAttacks(from, occupiedBB()) & destBB, moves);
+	}
+	for (int i = 0; i < pieceCount[TURN][QUEEN]; ++i)
+	{
+		from = pieceSq[turn][QUEEN][i];
+		revealMoves<TURN, LEGAL>(from, magicRookAttacks(from, occupiedBB()) & destBB, moves);
+	}
+	// Bishop and partially queen moves
+	for (int i = 0; i < pieceCount[TURN][BISHOP]; ++i)
+	{
+		from = pieceSq[turn][BISHOP][i];
+		revealMoves<TURN, LEGAL>(from, magicBishopAttacks(from, occupiedBB()) & destBB, moves);
+	}
+	for (int i = 0; i < pieceCount[TURN][QUEEN]; ++i)
+	{
+		from = pieceSq[turn][QUEEN][i];
+		revealMoves<TURN, LEGAL>(from, magicBishopAttacks(from, occupiedBB()) & destBB, moves);
+	}
 }
 
 //============================================================
@@ -394,62 +433,65 @@ void Position::generateMoves(MoveList& moves)
 		REL_SQ_G1 = relSquare(Sq::G1, TURN), REL_SQ_F1 = relSquare(Sq::F1, TURN);
 	// TURN is a template parameter and is used only for optimization purposes, so it should be equal to turn
 	assert(TURN == turn);
-	// Pawn moves
-	generatePawnMoves<TURN, MG_TYPE, LEGAL>(moves);
-	// Castlings. Their legality (king's path should not be under attack) is checked right here
-	if (MG_TYPE & MG_NON_CAPTURES)
+	// For evasions we use more efficient approach
+	if constexpr (MG_TYPE == MG_EVASIONS)
 	{
-		if ((info.castlingRight & makeCastling(TURN, OO)) && (occupiedBB() & bbCastlingInner[TURN][OO]) == 0 &&
-			!(isAttacked(REL_SQ_G1, OPPONENT) || isAttacked(REL_SQ_F1, OPPONENT) ||
-				isAttacked(REL_SQ_E1, OPPONENT)))
-			moves.add(Move(REL_SQ_E1, REL_SQ_G1, MT_CASTLING));
-		if ((info.castlingRight & makeCastling(TURN, OOO)) && (occupiedBB() & bbCastlingInner[TURN][OOO]) == 0 &&
-			!(isAttacked(REL_SQ_C1, OPPONENT) || isAttacked(REL_SQ_D1, OPPONENT) ||
-				isAttacked(REL_SQ_E1, OPPONENT)))
-			moves.add(Move(REL_SQ_E1, REL_SQ_C1, MT_CASTLING));
+		// Since we are generating evasions, we should be in check
+		assert(isInCheck());
+
+		const Square kingSq = pieceSq[TURN][KING][0];
+		const Bitboard checkers = allAttackers(kingSq, opposite(TURN));
+		// There must be at least one checker and in standard chess there are no tripple ot higher order checks
+		assert(checkers && countSet(checkers) <= 2);
+		// Generate king moves to unattacked squares
+		const Bitboard rescueBB = ~colorBB[TURN] & bbKingAttack[kingSq];
+		revealMoves<TURN, LEGAL>(kingSq, rescueBB, moves);
+		// If check is not double, we can obstruct checking path or capture the checker
+		if (zeroOrSingular(checkers)) // we know it's not zero
+		{
+			const Square checker = getLSB(checkers);
+			const Bitboard destBB = bbBetween[checker][kingSq] | bbSquare[checker];
+			// Generate pawn and usual piece (without king) moves to appropriate
+			// destinations, omit castlings (they can't be legal during checks)
+			generatePawnMoves<TURN, MG_TYPE, LEGAL>(moves, destBB);
+			generateFigureMoves<TURN, LEGAL>(moves, destBB);
+		}
 	}
-	// Target for usual piece moves
-	const Bitboard target = (MG_TYPE == MG_CAPTURES ? colorBB[opposite(TURN)] :
-		MG_TYPE == MG_NON_CAPTURES ? emptyBB() : ~colorBB[TURN]);
-	Square from;
-	// Knight moves
-	for (int i = 0; i < pieceCount[TURN][KNIGHT]; ++i)
+	else
 	{
-		from = pieceSq[turn][KNIGHT][i];
-		revealMoves<TURN, LEGAL>(from, bbKnightAttack[from] & target, moves);
-	}
-	// King moves
-	for (int i = 0; i < pieceCount[TURN][KING]; ++i)
-	{
-		from = pieceSq[turn][KING][i];
-		revealMoves<TURN, LEGAL>(from, bbKingAttack[from] & target, moves);
-	}
-	// Rook and partially queen moves
-	for (int i = 0; i < pieceCount[TURN][ROOK]; ++i)
-	{
-		from = pieceSq[turn][ROOK][i];
-		revealMoves<TURN, LEGAL>(from, magicRookAttacks(from, occupiedBB()) & target, moves);
-	}
-	for (int i = 0; i < pieceCount[TURN][QUEEN]; ++i)
-	{
-		from = pieceSq[turn][QUEEN][i];
-		revealMoves<TURN, LEGAL>(from, magicRookAttacks(from, occupiedBB()) & target, moves);
-	}
-	// Bishop and partially queen moves
-	for (int i = 0; i < pieceCount[TURN][BISHOP]; ++i)
-	{
-		from = pieceSq[turn][BISHOP][i];
-		revealMoves<TURN, LEGAL>(from, magicBishopAttacks(from, occupiedBB()) & target, moves);
-	}
-	for (int i = 0; i < pieceCount[TURN][QUEEN]; ++i)
-	{
-		from = pieceSq[turn][QUEEN][i];
-		revealMoves<TURN, LEGAL>(from, magicBishopAttacks(from, occupiedBB()) & target, moves);
+		// Pawn moves
+		generatePawnMoves<TURN, MG_TYPE, LEGAL>(moves);
+		// Castlings. Their legality (king's path should not be under attack) is checked right here
+		if constexpr (MG_TYPE != MG_CAPTURES)
+		{
+			if ((info.castlingRight & makeCastling(TURN, OO)) &&
+				(occupiedBB() & bbCastlingInner[TURN][OO]) == 0 &&
+				!(isAttacked(REL_SQ_G1, OPPONENT) || isAttacked(REL_SQ_F1, OPPONENT) ||
+					isAttacked(REL_SQ_E1, OPPONENT)))
+				moves.add(Move(REL_SQ_E1, REL_SQ_G1, MT_CASTLING));
+			if ((info.castlingRight & makeCastling(TURN, OOO)) &&
+				(occupiedBB() & bbCastlingInner[TURN][OOO]) == 0 &&
+				!(isAttacked(REL_SQ_C1, OPPONENT) || isAttacked(REL_SQ_D1, OPPONENT) ||
+					isAttacked(REL_SQ_E1, OPPONENT)))
+				moves.add(Move(REL_SQ_E1, REL_SQ_C1, MT_CASTLING));
+		}
+		Bitboard destBB;
+		// Usual piece moves
+		if constexpr (MG_TYPE == MG_CAPTURES)
+			destBB = colorBB[opposite(TURN)];
+		else if constexpr (MG_TYPE == MG_NON_CAPTURES)
+			destBB = emptyBB();
+		else // if constexpr (MG_TYPE == MG_ALL), omitted because MG_EVASIONS is handled before
+			destBB = ~colorBB[TURN];
+		generateFigureMoves<TURN, LEGAL>(moves, destBB);
+		// King moves
+		const Square kingSq = pieceSq[turn][KING][0];
+		revealMoves<TURN, LEGAL>(kingSq, bbKingAttack[kingSq] & destBB, moves);
 	}
 	// For debugging purposes this is sometimes needed to make move
 	// ordering independent of current order of pieces in piece lists
 	// In these cases it may also be useful to disable history and countermove heuristics
-#ifdef _DEBUG
+#ifdef ENGINE_DEBUG
 	if constexpr (SORT_GENMOVES_ON_DEBUG)
 	{
 		std::sort(moves.begin(), moves.end(),
@@ -622,28 +664,32 @@ template void Position::revealMoves<WHITE, true>(Square, Bitboard, MoveList&);
 template void Position::revealMoves<WHITE, false>(Square, Bitboard, MoveList&);
 template void Position::revealMoves<BLACK, true>(Square, Bitboard, MoveList&);
 template void Position::revealMoves<BLACK, false>(Square, Bitboard, MoveList&);
-template void Position::generateEvasions<WHITE, true>(MoveList&);
-template void Position::generateEvasions<WHITE, false>(MoveList&);
-template void Position::generateEvasions<BLACK, true>(MoveList&);
-template void Position::generateEvasions<BLACK, false>(MoveList&);
-template void Position::generatePawnMoves<WHITE, MG_NON_CAPTURES, true>(MoveList&);
-template void Position::generatePawnMoves<WHITE, MG_NON_CAPTURES, false>(MoveList&);
-template void Position::generatePawnMoves<WHITE, MG_CAPTURES, true>(MoveList&);
-template void Position::generatePawnMoves<WHITE, MG_CAPTURES, false>(MoveList&);
-template void Position::generatePawnMoves<WHITE, MG_ALL, true>(MoveList&);
-template void Position::generatePawnMoves<WHITE, MG_ALL, false>(MoveList&);
-template void Position::generatePawnMoves<BLACK, MG_NON_CAPTURES, true>(MoveList&);
-template void Position::generatePawnMoves<BLACK, MG_NON_CAPTURES, false>(MoveList&);
-template void Position::generatePawnMoves<BLACK, MG_CAPTURES, true>(MoveList&);
-template void Position::generatePawnMoves<BLACK, MG_CAPTURES, false>(MoveList&);
-template void Position::generatePawnMoves<BLACK, MG_ALL, true>(MoveList&);
-template void Position::generatePawnMoves<BLACK, MG_ALL, false>(MoveList&);
+template void Position::generatePawnMoves<WHITE, MG_NON_CAPTURES, true>(MoveList&, Bitboard);
+template void Position::generatePawnMoves<WHITE, MG_NON_CAPTURES, false>(MoveList&, Bitboard);
+template void Position::generatePawnMoves<WHITE, MG_CAPTURES, true>(MoveList&, Bitboard);
+template void Position::generatePawnMoves<WHITE, MG_CAPTURES, false>(MoveList&, Bitboard);
+template void Position::generatePawnMoves<WHITE, MG_ALL, true>(MoveList&, Bitboard);
+template void Position::generatePawnMoves<WHITE, MG_ALL, false>(MoveList&, Bitboard);
+template void Position::generatePawnMoves<BLACK, MG_NON_CAPTURES, true>(MoveList&, Bitboard);
+template void Position::generatePawnMoves<BLACK, MG_NON_CAPTURES, false>(MoveList&, Bitboard);
+template void Position::generatePawnMoves<BLACK, MG_CAPTURES, true>(MoveList&, Bitboard);
+template void Position::generatePawnMoves<BLACK, MG_CAPTURES, false>(MoveList&, Bitboard);
+template void Position::generatePawnMoves<BLACK, MG_ALL, true>(MoveList&, Bitboard);
+template void Position::generatePawnMoves<BLACK, MG_ALL, false>(MoveList&, Bitboard);
+template void Position::generateFigureMoves<WHITE, true>(MoveList&, Bitboard);
+template void Position::generateFigureMoves<WHITE, false>(MoveList&, Bitboard);
+template void Position::generateFigureMoves<BLACK, true>(MoveList&, Bitboard);
+template void Position::generateFigureMoves<BLACK, false>(MoveList&, Bitboard);
+template void Position::generateMoves<WHITE, MG_EVASIONS, true>(MoveList&);
+template void Position::generateMoves<WHITE, MG_EVASIONS, false>(MoveList&);
 template void Position::generateMoves<WHITE, MG_NON_CAPTURES, true>(MoveList&);
 template void Position::generateMoves<WHITE, MG_NON_CAPTURES, false>(MoveList&);
 template void Position::generateMoves<WHITE, MG_CAPTURES, true>(MoveList&);
 template void Position::generateMoves<WHITE, MG_CAPTURES, false>(MoveList&);
 template void Position::generateMoves<WHITE, MG_ALL, true>(MoveList&);
 template void Position::generateMoves<WHITE, MG_ALL, false>(MoveList&);
+template void Position::generateMoves<BLACK, MG_EVASIONS, true>(MoveList&);
+template void Position::generateMoves<BLACK, MG_EVASIONS, false>(MoveList&);
 template void Position::generateMoves<BLACK, MG_NON_CAPTURES, true>(MoveList&);
 template void Position::generateMoves<BLACK, MG_NON_CAPTURES, false>(MoveList&);
 template void Position::generateMoves<BLACK, MG_CAPTURES, true>(MoveList&);

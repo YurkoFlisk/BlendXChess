@@ -4,18 +4,21 @@
 //============================================================
 
 #include "transtable.h"
-int fr = TTBUCKET_COUNT * TTBUCKET_SIZE;
+
+int ttFreeEntries = TT_BUCKET_COUNT * TTBUCKET_ENTRIES;
+
 //============================================================
 // Stores the info to a corresponding entry if appropriate
 //============================================================
 void TTBucket::store(Key key, Depth depth, Bound bound, Score score, Move move, int16_t age)
 {
 	TTEntry* replace = entries;
-	for (int i = 0; i < TTBUCKET_SIZE; ++i)
+	for (int i = 0; i < TTBUCKET_ENTRIES; ++i)
 	{
 		if (entries[i].depth == 0)
 		{
-			--fr;
+			if constexpr (TT_COUNT_FREE_ENTRIES)
+				--ttFreeEntries;
 			entries[i].store(key, depth, bound, score, move, age);
 			return;
 		}
@@ -39,7 +42,7 @@ void TTBucket::store(Key key, Depth depth, Bound bound, Score score, Move move, 
 //============================================================
 const TTEntry* TTBucket::probe(Key key) const
 {
-	for (int i = 0; i < TTBUCKET_SIZE; ++i)
+	for (int i = 0; i < TTBUCKET_ENTRIES; ++i)
 	{
 		if (entries[i].depth == 0) // No entry has been written here and further
 			return nullptr;

@@ -7,6 +7,7 @@
 #ifndef MOVELIST_H
 #define MOVELIST_H
 #include "basic_types.h"
+#include <vector>
 
 //============================================================
 // Struct for storing a move with it's sorting score
@@ -51,6 +52,8 @@ public:
 	void sort(void);
 	// Get the move by index
 	MLNode& operator[](int);
+	// Get AN representation of moves
+	std::vector<std::string> toAN(void) const;
 private:
 	int moveCnt; // Move count
 	int moveIdx; // Next move index (for getNextBest type of move acquisition)

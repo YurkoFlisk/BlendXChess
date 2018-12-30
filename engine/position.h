@@ -12,8 +12,8 @@
 #include "evaluate.h"
 #include "movelist.h"
 
-#if defined(_DEBUG) | defined(DEBUG)
-constexpr bool SORT_GENMOVES_ON_DEBUG = false; // rarely needed
+#ifdef ENGINE_DEBUG
+constexpr bool SORT_GENMOVES_ON_DEBUG = false; // rarely needed and only in debug
 #endif
 
 //============================================================
@@ -64,6 +64,8 @@ public:
 	bool isAttacked(Square, Side) const;
 	// Least valuable attacker on given square by given side (king is considered most valuable here)
 	Square leastAttacker(Square, Side) const;
+	// All attackers on given square by given side
+	Bitboard allAttackers(Square, Side) const;
 	// Whether current side is in check
 	inline bool isInCheck(void) const;
 	// Load position from a given stream in FEN notation (bool parameter says whether to omit move counters)
@@ -95,13 +97,13 @@ protected:
 	// Reveal NON-PAWN moves from attack bitboard (legal if LEGAL == true and pseudolegal otherwise)
 	template<Side TURN, bool LEGAL>
 	void revealMoves(Square, Bitboard, MoveList&);
-	// Generate all pawn moves
+	// Generate pawn moves. If MG_TYPE == MG_EVASIONS, only to distBB squares
 	template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
-	void generatePawnMoves(MoveList&);
-	// Generate all check evasions (legal if LEGAL == true and pseudolegal otherwise)
+	void generatePawnMoves(MoveList&, Bitboard = Bitboard());
+	// Generate non-pawn and non-king moves. Only to destBB squares irrespectively of MG_TYPE
 	template<Side TURN, bool LEGAL>
-	void generateEvasions(MoveList&);
-	// Generate all moves (legal if LEGAL == true and pseudolegal otherwise)
+	void generateFigureMoves(MoveList&, Bitboard);
+	// Generate moves (legal if LEGAL == true and pseudolegal otherwise)
 	template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
 	void generateMoves(MoveList&);
 	// Generate moves helpers
@@ -241,12 +243,12 @@ inline void Position::generateLegalMoves(MoveList& moves)
 {
 	if (turn == WHITE)
 		if (isAttacked(pieceSq[WHITE][KING][0], BLACK))
-			generateEvasions<WHITE, true>(moves);
+			generateMoves<WHITE, MG_EVASIONS, true>(moves);
 		else
 			generateMoves<WHITE, MG_TYPE, true>(moves);
 	else
 		if (isAttacked(pieceSq[BLACK][KING][0], WHITE))
-			generateEvasions<BLACK, true>(moves);
+			generateMoves<BLACK, MG_EVASIONS, true>(moves);
 		else
 			generateMoves<BLACK, MG_TYPE, true>(moves);
 }
@@ -256,12 +258,12 @@ inline void Position::generatePseudolegalMoves(MoveList& moves)
 {
 	if (turn == WHITE)
 		if (isAttacked(pieceSq[WHITE][KING][0], BLACK))
-			generateEvasions<WHITE, false>(moves);
+			generateMoves<WHITE, MG_EVASIONS, false>(moves);
 		else
 			generateMoves<WHITE, MG_TYPE, false>(moves);
 	else
 		if (isAttacked(pieceSq[BLACK][KING][0], WHITE))
-			generateEvasions<BLACK, false>(moves);
+			generateMoves<BLACK, MG_EVASIONS, false>(moves);
 		else
 			generateMoves<BLACK, MG_TYPE, false>(moves);
 }

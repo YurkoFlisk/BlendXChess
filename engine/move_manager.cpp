@@ -27,7 +27,7 @@ Move MoveManager<LEGAL>::next(void)
 		state = MM_GENMOVES;
 		if (eng.isPseudoLegal(ttMove)) // we check this because there could be hash collision
 		{
-#ifdef _DEBUG
+#ifdef ENGINE_DEBUG
 			eng.generatePseudolegalMoves(moveList);
 			bool foundTT = false;
 			for (int i = 0; i < moveList.count(); ++i)
@@ -47,7 +47,7 @@ Move MoveManager<LEGAL>::next(void)
 			else
 				return ttMove;
 		}
-#ifdef _DEBUG
+#ifdef ENGINE_DEBUG
 		else
 		{
 			eng.generatePseudolegalMoves(moveList);

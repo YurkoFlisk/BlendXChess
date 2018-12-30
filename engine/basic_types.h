@@ -10,6 +10,10 @@
 #include <cmath>
 #include <string>
 
+#if defined(_DEBUG) | defined(DEBUG)
+#define ENGINE_DEBUG
+#endif
+
 //============================================================
 // Basic typedef types
 //============================================================
@@ -85,7 +89,7 @@ enum MoveType : int8_t {
 // Move generation types in move generator
 // Note that when we are in check, all evasions are generated regardless of what MoveGen parameter is passed
 enum MoveGen : int8_t {
-	MG_NON_CAPTURES = 1, MG_CAPTURES, MG_ALL
+	MG_EVASIONS, MG_NON_CAPTURES, MG_CAPTURES, MG_ALL
 };
 // Game states
 enum GameState : int8_t {
@@ -452,7 +456,6 @@ public:
 	}
 	// Shifts square to a given direction given number of times (assumes one of Sq::D_'s)
 	// Recognizes getting outside of the board and sets square to NONE in these cases
-	constexpr inline Square& shiftD(Square d, int cnt = 1) noexcept;
 	inline std::string toAN(void) const
 	{
 		return { (char)(file() + 'a'), (char)(rank() + '1') };
@@ -485,15 +488,15 @@ constexpr inline Square relSquare(Square sq, Side c) noexcept
 }
 // Shifts square to a given direction given number of times (assumes one of Sq::D_'s)
 // Recognizes getting outside of the board and sets square to NONE in these cases
-constexpr inline Square& Square::shiftD(Square d, int cnt) noexcept
+constexpr inline Square shiftD(Square sq, Square d, int cnt = 1) noexcept
 {
-	while (cnt-- > 0)
-		if (isValid())
-		{
-			const Square nsq = *this + d;
-			*this = (nsq.isValid() && distance(nsq, *this) <= 2 ? nsq : Sq::NONE);
-		}
-	return *this;
+	while (cnt-- > 0 && sq.isValid())
+	{
+		sq += d;
+		if (!(sq.isValid() && distance(sq, sq - d) <= 2))
+			sq = Sq::NONE;
+	}
+	return sq;
 }
 
 class Move

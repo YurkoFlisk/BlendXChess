@@ -87,6 +87,11 @@ void initMagics(const Square[4], const Bitboard[], const Bitboard[],
 // Inline functions
 //============================================================
 
+// Whether bitboard has more than one bit set
+inline bool zeroOrSingular(Bitboard bb)
+{
+	return !(bb & (bb - 1));
+}
 // Gets magic rook moves
 inline Bitboard magicRookAttacks(Square from, Bitboard occupancy)
 {
@@ -101,7 +106,7 @@ inline Bitboard magicBishopAttacks(Square from, Bitboard occupancy)
 		* mBishopMagics[from].mul) >> mBishopMagics[from].shifts];
 }
 
-// Shifts a bitboard in a direction specified by one of the D_ variables
+// Shifts a bitboard in a direction specified by one of the D_ constants
 template<SquareRaw DELTA>
 constexpr inline Bitboard bbShiftD(Bitboard bb) noexcept
 {
