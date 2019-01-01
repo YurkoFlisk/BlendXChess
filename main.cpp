@@ -1,3 +1,8 @@
+//============================================================
+// Standalone console interface to the engine
+// BlendXChess
+//============================================================
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -7,7 +12,7 @@
 using namespace std;
 Engine eng;
 
-int main(void)
+int main(/*int argc, char **argv*/)
 {
 	Engine::initialize();
 	/* for (int i = 0; i < 8; ++i)

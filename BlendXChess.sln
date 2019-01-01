@@ -3,9 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28307.168
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ChessEngine", "ChessEngine.vcxproj", "{F7BE2629-1482-4011-9C3A-3D01A426E258}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConsoleInterface", "ChessEngine.vcxproj", "{F7BE2629-1482-4011-9C3A-3D01A426E258}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "engine", "engine\engine.vcxitems", "{1B6C37E7-0B0F-4C9F-B8BA-B228CF0A2535}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UCI", "UCI\UCI.vcxproj", "{473A717A-EE13-4EF5-8A23-616195BE3F78}"
 EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
@@ -27,6 +29,14 @@ Global
 		{F7BE2629-1482-4011-9C3A-3D01A426E258}.Release|x64.Build.0 = Release|x64
 		{F7BE2629-1482-4011-9C3A-3D01A426E258}.Release|x86.ActiveCfg = Release|Win32
 		{F7BE2629-1482-4011-9C3A-3D01A426E258}.Release|x86.Build.0 = Release|Win32
+		{473A717A-EE13-4EF5-8A23-616195BE3F78}.Debug|x64.ActiveCfg = Debug|x64
+		{473A717A-EE13-4EF5-8A23-616195BE3F78}.Debug|x64.Build.0 = Debug|x64
+		{473A717A-EE13-4EF5-8A23-616195BE3F78}.Debug|x86.ActiveCfg = Debug|Win32
+		{473A717A-EE13-4EF5-8A23-616195BE3F78}.Debug|x86.Build.0 = Debug|Win32
+		{473A717A-EE13-4EF5-8A23-616195BE3F78}.Release|x64.ActiveCfg = Release|x64
+		{473A717A-EE13-4EF5-8A23-616195BE3F78}.Release|x64.Build.0 = Release|x64
+		{473A717A-EE13-4EF5-8A23-616195BE3F78}.Release|x86.ActiveCfg = Release|Win32
+		{473A717A-EE13-4EF5-8A23-616195BE3F78}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

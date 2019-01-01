@@ -29,7 +29,8 @@ void TTBucket::store(Key key, Depth depth, Bound bound, Score score, Move move, 
 			return;
 		}
 		if (entries[i].age < replace->age ||
-			(entries[i].age == replace->age && entries[i].depth < replace->depth))
+			(entries[i].age == replace->age && (entries[i].depth < replace->depth/* ||
+				entries[i].depth == replace->depth && replace->bound == BOUND_EXACT*/)))
 			replace = entries + i;
 	}
 	if (replace->age < age || (replace->age == age && (replace->depth < depth ||

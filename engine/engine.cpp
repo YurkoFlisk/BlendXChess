@@ -874,7 +874,8 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 	// Save collected info to the transposition table
 	if (anyLegalMove)
 		transpositionTable.store(info.keyZobrist, depth, alpha == oldAlpha ? BOUND_UPPER :
-			alpha < beta ? BOUND_EXACT : BOUND_LOWER, scoreToTT(alpha), bestMove, gamePly - searchPly); // ! NOT searchPly !
+			alpha < beta ? BOUND_EXACT : BOUND_LOWER, scoreToTT(bestScore),
+			bestMove, gamePly - searchPly); // ! NOT searchPly !
 	// Return alpha
 	return anyLegalMove ? alpha : isInCheck() ? SCORE_LOSE + searchPly : SCORE_ZERO;
 }
