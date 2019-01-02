@@ -143,8 +143,8 @@ bool Engine::DoMove(Move move)
 			found = true;
 			break;
 		}
-	// If it's not, we can't perform it, otherwise we convert it to
-	// SAN notation and deliver it to doMove function
+	// If it's not, we can't perform it, otherwise we deliver it to doMove function
+	// and convert it to SAN notation (using this in updating game information)
 	if (!found)
 		return false;
 	std::string moveSAN = moveToSAN(move);
@@ -165,40 +165,12 @@ bool Engine::DoMove(Move move)
 // Engine internals use doMove instead
 // Input string in algebraic-like format
 //============================================================
-bool Engine::DoMove(const std::string& strMove)
+bool Engine::DoMove(const std::string& moveStr)
 {
-	Move move;
-	// Convert the move from string representation to Move type. Legality here is
-	// checked only partially (to the stage when move is convertible to Move representation)
-	if (strMove == "O-O")
-		move = Move(turn, OO);
-	else if (strMove == "O-O-O")
-		move = Move(turn, OOO);
-	else if (strMove.size() < 5 || strMove.size() > 6 || strMove[2] != '-')
-		return false;
-	else
-	{
-		const int8_t rfrom = strMove[1] - '1', ffrom = strMove[0] - 'a',
-			rto = strMove[4] - '1', fto = strMove[3] - 'a';
-		if (!validRank(rfrom) || !validFile(ffrom)
-			|| !validRank(rto) || !validFile(fto))
-			return false;
-		const Square from = Square(rfrom, ffrom), to = Square(rto, fto);
-		if (strMove.size() == 6)
-			switch (strMove[5])
-			{
-			case 'N': move = Move(from, to, MT_PROMOTION, KNIGHT); break;
-			case 'B': move = Move(from, to, MT_PROMOTION, BISHOP); break;
-			case 'R': move = Move(from, to, MT_PROMOTION, ROOK); break;
-			case 'Q': move = Move(from, to, MT_PROMOTION, QUEEN); break;
-			default: return false;
-			}
-		else if (getPieceType(board[from]) == PAWN && distance(from, to) == 2
-			&& board[to] == PIECE_NULL && rto == relRank(2, turn))
-			move = Move(from, to, MT_EN_PASSANT);
-		else
-			move = Move(from, to);
-	}
+	// Convert the move from string representation to Move type. Legality there is
+	// checked only partially (to the stage when move is convertible to Move representation),
+	// and MOVE_NONE is returned in case of error
+	const Move move = moveFromAN(moveStr);
 	// Use Move type representation of move for next actions
 	return DoMove(move);
 }
@@ -275,164 +247,6 @@ int Engine::perft(Depth depth)
 		undoMove(move);
 	}
 	return nodes;
-}
-
-//============================================================
-// Convert a move from SAN notation to Move. It should be valid in current position
-//============================================================
-Move Engine::moveFromSAN(const std::string& moveSAN)
-{
-	// Set values to move information variables indicating them as unknown
-	int8_t fromFile = -1, fromRank = -1;
-	Square to = Sq::NONE;
-	PieceType pieceType = PT_NULL, promotionPT = PT_NULL;
-	Move move = MOVE_NONE;
-	// If move string is too small, don't parse it
-	if (moveSAN.size() < 2)
-		throw std::runtime_error("Move string is too short");
-	// Parse moveSAN to reveal given move information
-	// Parse castlings first
-	if (validCastlingSideAN(moveSAN))
-		move = Move(turn, castlingSideFromAN(moveSAN));
-	// Parse pawn moves
-	else if (validFileAN(moveSAN[0]))
-	{
-		pieceType = PAWN;
-		if (moveSAN[1] == 'x')
-		{
-			if (moveSAN.size() < 4 || 5 < moveSAN.size() || !validSquareAN(moveSAN.substr(2, 2)))
-				throw std::runtime_error("Invalid pawn capture destination square");
-			to = Square::fromAN(moveSAN.substr(2, 2));
-			fromFile = fileFromAN(moveSAN[0]);
-			if (moveSAN.size() == 5)
-			{
-				if (!validPieceTypeAN(moveSAN[4]))
-					throw std::runtime_error("Invalid promotion piece type");
-				promotionPT = pieceTypeFromAN(moveSAN[4]);
-			}
-			else if (to.rank() == RANK_CNT - 1)
-				throw std::runtime_error("Missing promotion piece type");
-		}
-		else
-		{
-			if (!validRankAN(moveSAN[1]) || moveSAN.size() > 3)
-				throw std::runtime_error("Invalid pawn move destination square");
-			to = Square::fromAN(moveSAN.substr(0, 2));
-			fromFile = to.file();
-			if (moveSAN.size() == 3)
-			{
-				if (!validPieceTypeAN(moveSAN[2]))
-					throw std::runtime_error("Invalid promotion piece type");
-				promotionPT = pieceTypeFromAN(moveSAN[2]);
-			}
-			else if (to.rank() == RANK_CNT - 1)
-				throw std::runtime_error("Missing promotion piece type");
-		}
-	}
-	// Parse other piece moves
-	else
-	{
-		if (moveSAN.size() < 3 || 5 < moveSAN.size())
-			throw std::runtime_error("Invalid move string size");
-		pieceType = pieceTypeFromAN(moveSAN[0]);
-		if (moveSAN.size() == 5)
-		{
-			if (!validFileAN(moveSAN[1]) || !validRankAN(moveSAN[2]))
-				throw std::runtime_error("Invalid move source square");
-			fromFile = fileFromAN(moveSAN[1]), fromRank = rankFromAN(moveSAN[2]);
-			to = Square::fromAN(moveSAN.substr(3, 2));
-		}
-		else if (moveSAN.size() == 4)
-		{
-			if (!validFileAN(moveSAN[1]) && !validRankAN(moveSAN[1]))
-				throw std::runtime_error("Invalid move source square file or rank");
-			if (validFileAN(moveSAN[1]))
-				fromFile = fileFromAN(moveSAN[1]);
-			else
-				fromRank = rankFromAN(moveSAN[1]);
-			to = Square::fromAN(moveSAN.substr(2, 2));
-		}
-		else
-			to = Square::fromAN(moveSAN.substr(1, 2));
-	}
-	// Generate all legal moves
-	MoveList legalMoves;
-	generateLegalMovesEx(legalMoves);
-	// Now find a legal move corresponding to the parsed information
-	Move legalMove;
-	bool found = false;
-	for (int i = 0; i < legalMoves.count(); ++i)
-	{
-		legalMove = legalMoves[i].move;
-		if ((move == MOVE_NONE || move == legalMove) &&
-			(fromFile == -1 || fromFile == legalMove.from().file()) &&
-			(fromRank == -1 || fromRank == legalMove.from().rank()) &&
-			(to == Sq::NONE || to == legalMove.to()) &&
-			(pieceType == PT_NULL || pieceType == getPieceType(board[legalMove.from()])) &&
-			(legalMove.type() != MT_PROMOTION || promotionPT == legalMove.promotion()))
-			if (found)
-				throw std::runtime_error("Given move information is ambiguous");
-			else
-				found = true, move = legalMove;
-	}
-	if (!found)
-		throw std::runtime_error("Move is illegal");
-	return move;
-}
-
-//============================================================
-// Convert a move to SAN notation. It should be legal in current position
-//============================================================
-std::string Engine::moveToSAN(Move move)
-{
-	Move legalMove;
-	MoveList moveList;
-	generateLegalMovesEx(moveList);
-	const Square from = move.from(), to = move.to();
-	const MoveType moveType = move.type();
-	const PieceType pieceType = getPieceType(board[from]);
-	bool found = false, fileUncertainty = false, rankUncertainty = false;
-	for (int i = 0; i < moveList.count(); ++i)
-	{
-		legalMove = moveList[i].move;
-		const Square lmFrom = legalMove.from(), lmTo = legalMove.to();
-		if (move == legalMove)
-			found = true;
-		else if (to == lmTo && pieceType == getPieceType(board[lmFrom]))
-		{
-			if (from.file() == lmFrom.file())
-				fileUncertainty = true;
-			if (from.rank() == lmFrom.rank())
-				rankUncertainty = true;
-		}
-	}
-	if (!found)
-		throw std::runtime_error("Given move is illegal");
-	if (moveType == MT_CASTLING)
-		switch (move.castlingSide())
-		{
-		case OO:	return "O-O";
-		case OOO:	return "O-O-O";
-		}
-	std::stringstream SAN;
-	if (pieceType == PAWN)
-	{
-		if (from.file() != to.file()) // works for en passant as well
-			SAN << from.fileAN() << 'x';
-		SAN << to.toAN();
-		if (moveType == MT_PROMOTION)
-			SAN << pieceTypeToAN(move.promotion());
-	}
-	else
-	{
-		SAN << pieceTypeToAN(pieceType);
-		if (rankUncertainty)
-			SAN << from.fileAN();
-		if (fileUncertainty)
-			SAN << from.rankAN();
-		SAN << to.toAN();
-	}
-	return SAN.str();
 }
 
 //============================================================

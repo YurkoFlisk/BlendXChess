@@ -80,10 +80,6 @@ public:
 	// during generation and promotions to bishops and rooks are included)
 	template<bool MG_LEGAL = false>
 	int perft(Depth);
-	// Convert a move from SAN notation to Move. It should be valid in current position
-	Move moveFromSAN(const std::string&);
-	// Convert a move from Move to SAN notation. It should be valid in current position
-	std::string moveToSAN(Move);
 	// Load game from the given stream in SAN notation
 	void loadGame(std::istream&);
 	// Write game to the given stream in SAN notation

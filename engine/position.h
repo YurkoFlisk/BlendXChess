@@ -68,8 +68,20 @@ public:
 	Bitboard allAttackers(Square, Side) const;
 	// Whether current side is in check
 	inline bool isInCheck(void) const;
+	// Convert a move from AN notation to Move. It should be valid in current position
+	Move moveFromAN(const std::string&);
+	// Convert a move from SAN notation to Move. It should be valid in current position
+	Move moveFromSAN(const std::string&);
+	// Convert a move to SAN notation. It should be valid in current position
+	std::string moveToSAN(Move);
+	// Convert a move from UCI notation to Move. It should be valid in current position 
+	Move moveFromUCI(const std::string&);
+	// Convert a move  to UCI notation. It should be valid in current position
+	std::string moveToUCI(Move);
 	// Load position from a given stream in FEN notation (bool parameter says whether to omit move counters)
 	void loadPosition(std::istream&, bool = false);
+	// Load position from a given string in FEN notation (bool parameter says whether to omit move counters)
+	void loadPosition(const std::string&, bool = false);
 	// Write position to a given stream in FEN notation, possibly omitting half- and full-move counters
 	void writePosition(std::ostream&, bool = false) const;
 protected:

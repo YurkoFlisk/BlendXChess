@@ -12,16 +12,12 @@
 using namespace std;
 Engine eng;
 
+//============================================================
+// Main function
+//============================================================
 int main(/*int argc, char **argv*/)
 {
 	Engine::initialize();
-	/* for (int i = 0; i < 8; ++i)
-		cout << ZobristEP[i] << endl;
-	cout << endl;
-	for (Color c = WHITE; c <= BLACK; ++c)
-		for (PieceType pt = PAWN; pt <= KING; ++pt)
-			for (Square sq = Sq::A1; sq <= Sq::H8; ++sq)
-				cout << ZobristPSQ[c][pt][sq] << endl; */
 	char userWhite, startMode;
 	Side userTurn;
 	Depth resDepth, depth;

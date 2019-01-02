@@ -502,6 +502,7 @@ constexpr inline Square shiftD(Square sq, Square d, int cnt = 1) noexcept
 class Move
 {
 public:
+	static Move fromUCI(const std::string& str);
 	inline Move(void) = default;
 	constexpr inline Move(MoveRaw move) noexcept : move(move)
 	{}
@@ -580,5 +581,10 @@ private:
 	}
 	MoveRaw move;
 };
+
+Move Move::fromUCI(const std::string& str)
+{
+	return Move();
+}
 
 #endif

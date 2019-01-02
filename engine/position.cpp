@@ -5,6 +5,8 @@
 
 #include "position.h"
 #include <algorithm>
+#include <string>
+#include <sstream>
 
 //============================================================
 // Clear game state
@@ -503,6 +505,242 @@ void Position::generateMoves(MoveList& moves)
 }
 
 //============================================================
+// Convert a move from AN notation to Move. It should be valid in current position
+//============================================================
+Move Position::moveFromAN(const std::string& strMove)
+{
+	if (strMove == "O-O")
+		return Move(turn, OO);
+	else if (strMove == "O-O-O")
+		return Move(turn, OOO);
+	else if (strMove.size() < 5 || strMove.size() > 6 || strMove[2] != '-')
+		return MOVE_NONE;
+	else
+	{
+		const int8_t rfrom = strMove[1] - '1', ffrom = strMove[0] - 'a',
+			rto = strMove[4] - '1', fto = strMove[3] - 'a';
+		if (!validRank(rfrom) || !validFile(ffrom)
+			|| !validRank(rto) || !validFile(fto))
+			return MOVE_NONE;
+		const Square from = Square(rfrom, ffrom), to = Square(rto, fto);
+		if (strMove.size() == 6)
+			switch (tolower(strMove[5]))
+			{
+			case 'N': return Move(from, to, MT_PROMOTION, KNIGHT);
+			case 'B': return Move(from, to, MT_PROMOTION, BISHOP);
+			case 'R': return Move(from, to, MT_PROMOTION, ROOK);
+			case 'Q': return Move(from, to, MT_PROMOTION, QUEEN);
+			default: return MOVE_NONE;
+			}
+		else if (getPieceType(board[from]) == PAWN && distance(from, to) == 2
+			&& board[to] == PIECE_NULL && rto == relRank(2, turn))
+			return Move(from, to, MT_EN_PASSANT);
+		else
+			return Move(from, to);
+	}
+}
+
+//============================================================
+// Convert a move from SAN notation to Move. It should be valid in current position
+//============================================================
+Move Position::moveFromSAN(const std::string& moveSAN)
+{
+	// Set values to move information variables indicating them as unknown
+	int8_t fromFile = -1, fromRank = -1;
+	Square to = Sq::NONE;
+	PieceType pieceType = PT_NULL, promotionPT = PT_NULL;
+	Move move = MOVE_NONE;
+	// If move string is too small, don't parse it
+	if (moveSAN.size() < 2)
+		throw std::runtime_error("Move string is too short");
+	// Parse moveSAN to reveal given move information
+	// Parse castlings first
+	if (validCastlingSideAN(moveSAN))
+		move = Move(turn, castlingSideFromAN(moveSAN));
+	// Parse pawn moves
+	else if (validFileAN(moveSAN[0]))
+	{
+		pieceType = PAWN;
+		if (moveSAN[1] == 'x')
+		{
+			if (moveSAN.size() < 4 || 5 < moveSAN.size() || !validSquareAN(moveSAN.substr(2, 2)))
+				throw std::runtime_error("Invalid pawn capture destination square");
+			to = Square::fromAN(moveSAN.substr(2, 2));
+			fromFile = fileFromAN(moveSAN[0]);
+			if (moveSAN.size() == 5)
+			{
+				if (!validPieceTypeAN(moveSAN[4]))
+					throw std::runtime_error("Invalid promotion piece type");
+				promotionPT = pieceTypeFromAN(moveSAN[4]);
+			}
+			else if (to.rank() == RANK_CNT - 1)
+				throw std::runtime_error("Missing promotion piece type");
+		}
+		else
+		{
+			if (!validRankAN(moveSAN[1]) || moveSAN.size() > 3)
+				throw std::runtime_error("Invalid pawn move destination square");
+			to = Square::fromAN(moveSAN.substr(0, 2));
+			fromFile = to.file();
+			if (moveSAN.size() == 3)
+			{
+				if (!validPieceTypeAN(moveSAN[2]))
+					throw std::runtime_error("Invalid promotion piece type");
+				promotionPT = pieceTypeFromAN(moveSAN[2]);
+			}
+			else if (to.rank() == RANK_CNT - 1)
+				throw std::runtime_error("Missing promotion piece type");
+		}
+	}
+	// Parse other piece moves
+	else
+	{
+		if (moveSAN.size() < 3 || 5 < moveSAN.size())
+			throw std::runtime_error("Invalid move string size");
+		pieceType = pieceTypeFromAN(moveSAN[0]);
+		if (moveSAN.size() == 5)
+		{
+			if (!validFileAN(moveSAN[1]) || !validRankAN(moveSAN[2]))
+				throw std::runtime_error("Invalid move source square");
+			fromFile = fileFromAN(moveSAN[1]), fromRank = rankFromAN(moveSAN[2]);
+			to = Square::fromAN(moveSAN.substr(3, 2));
+		}
+		else if (moveSAN.size() == 4)
+		{
+			if (!validFileAN(moveSAN[1]) && !validRankAN(moveSAN[1]))
+				throw std::runtime_error("Invalid move source square file or rank");
+			if (validFileAN(moveSAN[1]))
+				fromFile = fileFromAN(moveSAN[1]);
+			else
+				fromRank = rankFromAN(moveSAN[1]);
+			to = Square::fromAN(moveSAN.substr(2, 2));
+		}
+		else
+			to = Square::fromAN(moveSAN.substr(1, 2));
+	}
+	// Generate all legal moves
+	MoveList legalMoves;
+	generateLegalMovesEx(legalMoves);
+	// Now find a legal move corresponding to the parsed information
+	Move legalMove;
+	bool found = false;
+	for (int i = 0; i < legalMoves.count(); ++i)
+	{
+		legalMove = legalMoves[i].move;
+		if ((move == MOVE_NONE || move == legalMove) &&
+			(fromFile == -1 || fromFile == legalMove.from().file()) &&
+			(fromRank == -1 || fromRank == legalMove.from().rank()) &&
+			(to == Sq::NONE || to == legalMove.to()) &&
+			(pieceType == PT_NULL || pieceType == getPieceType(board[legalMove.from()])) &&
+			(legalMove.type() != MT_PROMOTION || promotionPT == legalMove.promotion()))
+			if (found)
+				throw std::runtime_error("Given move information is ambiguous");
+			else
+				found = true, move = legalMove;
+	}
+	if (!found)
+		throw std::runtime_error("Move is illegal");
+	return move;
+}
+
+//============================================================
+// Convert a move to SAN notation. It should be legal in current position
+//============================================================
+std::string Position::moveToSAN(Move move)
+{
+	Move legalMove;
+	MoveList moveList;
+	generateLegalMovesEx(moveList);
+	const Square from = move.from(), to = move.to();
+	const MoveType moveType = move.type();
+	const PieceType pieceType = getPieceType(board[from]);
+	bool found = false, fileUncertainty = false, rankUncertainty = false;
+	for (int i = 0; i < moveList.count(); ++i)
+	{
+		legalMove = moveList[i].move;
+		const Square lmFrom = legalMove.from(), lmTo = legalMove.to();
+		if (move == legalMove)
+			found = true;
+		else if (to == lmTo && pieceType == getPieceType(board[lmFrom]))
+		{
+			if (from.file() == lmFrom.file())
+				fileUncertainty = true;
+			if (from.rank() == lmFrom.rank())
+				rankUncertainty = true;
+		}
+	}
+	if (!found)
+		throw std::runtime_error("Given move is illegal");
+	if (moveType == MT_CASTLING)
+		switch (move.castlingSide())
+		{
+		case OO:	return "O-O";
+		case OOO:	return "O-O-O";
+		}
+	std::stringstream SAN;
+	if (pieceType == PAWN)
+	{
+		if (from.file() != to.file()) // works for en passant as well
+			SAN << from.fileAN() << 'x';
+		SAN << to.toAN();
+		if (moveType == MT_PROMOTION)
+			SAN << pieceTypeToAN(move.promotion());
+	}
+	else
+	{
+		SAN << pieceTypeToAN(pieceType);
+		if (rankUncertainty)
+			SAN << from.fileAN();
+		if (fileUncertainty)
+			SAN << from.rankAN();
+		SAN << to.toAN();
+	}
+	return SAN.str();
+}
+
+//============================================================
+// Convert a move to SAN notation. It should be legal in current position
+//============================================================
+Move Position::moveFromUCI(const std::string& strMove)
+{
+	Move move;
+	if (strMove == "e1g1")
+		move = Move(WHITE, OO);
+	else if (strMove == "e1c1")
+		move = Move(WHITE, OOO);
+	else if (strMove == "e8g8")
+		move = Move(BLACK, OO);
+	else if (strMove == "e8c8")
+		move = Move(BLACK, OOO);
+	else
+	{
+		std::string anStrMove = strMove;
+		anStrMove.insert(2, 1, '-');
+		move = moveFromAN(anStrMove);
+	}
+	return move;
+}
+
+//============================================================
+// Convert a move to UCI notation. It should be valid in current position
+//============================================================
+std::string Position::moveToUCI(Move move)
+{
+	if (move == MOVE_NONE)
+		return "0000";
+	std::string moveStr = move.from().toAN() + move.to().toAN();
+	if (move.type() == MT_PROMOTION)
+		switch (move.promotion())
+		{
+		case KNIGHT:	moveStr.push_back('n'); break;
+		case BISHOP:	moveStr.push_back('b'); break;
+		case ROOK:		moveStr.push_back('r'); break;
+		case QUEEN:		moveStr.push_back('q'); break;
+		}
+	return moveStr;
+}
+
+//============================================================
 // Load position from a given stream in FEN notation
 // (bool parameter says whether to omit move counters)
 //============================================================
@@ -591,6 +829,16 @@ void Position::loadPosition(std::istream& istr, bool omitCounters)
 				+ std::to_string(fullMoves));
 		gamePly = (fullMoves - 1) * 2 + (side == 'b' ? 1 : 0);
 	}
+}
+
+//============================================================
+// Load position from a given string in FEN notation
+// (bool parameter says whether to omit move counters)
+//============================================================
+void Position::loadPosition(const std::string& str, bool omitCounters)
+{
+	std::istringstream iss(str);
+	loadPosition(iss, omitCounters);
 }
 
 //============================================================
