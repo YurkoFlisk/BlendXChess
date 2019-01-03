@@ -54,10 +54,15 @@ void Engine::clear(void)
 }
 
 //============================================================
-// Reset game
+// Reset game (stops search if there's any)
 //============================================================
 void Engine::reset(void)
 {
+	// Update maximum available threads info
+	...
+	// If we are in search, stop it
+	if (inSearch)
+		;// searchStoppedNotifier.wait; !! TODO !!
 	clear();
 	Position::reset(); // Position::clear will also be called from here but it's not crucial
 	gameState = GS_ACTIVE;
@@ -111,6 +116,8 @@ bool Engine::threefoldRepetitionDraw(void) const
 //============================================================
 void Engine::updateGameState(void)
 {
+	if (inSearch)
+		return;
 	MoveList moveList;
 	generateLegalMoves(moveList);
 	if (moveList.empty())
@@ -126,12 +133,16 @@ void Engine::updateGameState(void)
 }
 
 //============================================================
-// Do move. Return true if move is legal, false otherwise
+// Do move. Return true if succeded, false otherwise
+// (false may be due to illegal move or inappropriate engine state)
 // It is not well optimized and is an interface for external calls
 // Engine internals use doMove instead
 //============================================================
 bool Engine::DoMove(Move move)
 {
+	// If we are in search, don't do any moves
+	if (inSearch)
+		return false;
 	// Generate legal moves
 	MoveList legalMoves;
 	generateLegalMovesEx(legalMoves);
@@ -160,13 +171,17 @@ bool Engine::DoMove(Move move)
 }
 
 //============================================================
-// Do move. Return true if move is legal, false otherwise
+// Do move. Return true if succeded, false otherwise
+// (false may be due to illegal move or inappropriate engine state)
 // It is not well optimized and is an interface for external calls
 // Engine internals use doMove instead
 // Input string in algebraic-like format
 //============================================================
 bool Engine::DoMove(const std::string& moveStr)
 {
+	// If we are in search, don't do any moves
+	if (inSearch)
+		return false;
 	// Convert the move from string representation to Move type. Legality there is
 	// checked only partially (to the stage when move is convertible to Move representation),
 	// and MOVE_NONE is returned in case of error
@@ -176,13 +191,17 @@ bool Engine::DoMove(const std::string& moveStr)
 }
 
 //============================================================
-// Do move. Return true if move is legal, false otherwise
+// Do move. Return true if succeded, false otherwise
+// (false may be due to illegal move or inappropriate engine state)
 // It is not well optimized and is an interface for external calls
 // Engine internals use doMove instead
 // Input string in SAN format
 //============================================================
 bool Engine::DoMoveSAN(const std::string& moveSAN)
 {
+	// If we are in search, don't do any moves
+	if (inSearch)
+		return false;
 	Move move;
 	// Try to reveal the move from SAN format and return false in case of illegal one
 	try
@@ -254,6 +273,9 @@ int Engine::perft(Depth depth)
 //============================================================
 void Engine::loadGame(std::istream& istr)
 {
+	// Don't load game if we are in search
+	if (inSearch)
+		return;
 	// Reset position information
 	reset();
 	// Read moves until mate/draw or end of file
@@ -465,6 +487,14 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 }
 
 //============================================================
+// Internal AI logic (coordinates searching process, launches PVS-threads)
+//============================================================
+void Engine::search(void)
+{
+
+}
+
+//============================================================
 // Main AI function
 // Returns position score and outputs the best move to the reference parameter
 // Returns optionally resultant search depth, traversed nodes (including from
@@ -472,6 +502,10 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 //============================================================
 Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, int& hits)
 {
+	// If we are already in search, the new one won't be launched
+	if (inSearch)
+		throw std::runtime_error("Another search is already launched");
+	inSearch = true;
 	nodes = 0;
 	// If game is not active, no search is possible
 	if (gameState != GS_ACTIVE)
@@ -499,7 +533,7 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 	{
 		startTime = std::chrono::high_resolution_clock::now();
 		timeCheckCounter = 0;
-		timeout = false;
+		stopSearch = false;
 	}
 	// Iterative deepening
 	for (Depth searchDepth = 1; searchDepth <= depth; ++searchDepth)
@@ -526,13 +560,13 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 				else
 				{
 					score = -pvs(searchDepth - 1, -curBestScore - 1, -curBestScore);
-					if (!timeout && beta > score && score > curBestScore)
+					if (!stopSearch && beta > score && score > curBestScore)
 						score = -pvs(searchDepth - 1, -beta, -score);
 				}
 				// Undo move
 				undoMove(move);
 				// Timeout check
-				if (timeout)
+				if (stopSearch)
 					break;
 				// If this move was better than current best one, update best move and score
 				if (score > curBestScore)
@@ -550,7 +584,7 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 				}
 			}
 			// Timeout check
-			if (timeout)
+			if (stopSearch)
 				break;
 			// If bestScore is inside the window, it is final score
 			if (alpha < curBestScore && curBestScore < beta)
@@ -561,9 +595,9 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 			beta = std::min<int>(curBestScore + delta, SCORE_WIN);
 		}
 		// Timeout check
-		if (timeout)
+		if (stopSearch)
 			break;
-		// Only if there was no timeout we should accept this
+		// Only if there was no forced search stop we should accept this
 		// iteration's best move and score as new best overall
 		bestMove = curBestMove;
 		bestScore = curBestScore;
@@ -598,7 +632,7 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 			if (std::chrono::duration_cast<std::chrono::milliseconds>(endTime
 				- startTime).count() > timeLimit)
 			{
-				timeout = true;
+				stopSearch = true;
 				return SCORE_ZERO;
 			}
 		}
@@ -651,13 +685,13 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 		else
 		{
 			score = -pvs(depth - 1, -alpha - 1, -alpha);
-			if (!timeout && beta > score && score > alpha)
+			if (!stopSearch && beta > score && score > alpha)
 				score = -pvs(depth - 1, -beta, -score);
 		}
 		// Undo move
 		undoMove(move);
 		// Timeout check
-		if (timeout)
+		if (stopSearch)
 			return SCORE_ZERO;
 		// Update bestScore
 		if (score > bestScore)

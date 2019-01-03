@@ -14,7 +14,7 @@ using namespace std;
 
 constexpr char LOG_FILE[] = "BlendXErrors.log";
 constexpr char ENGINE_NAME[] = "BlendX";
-constexpr char AUTHOR[] = "Yuriy Prokopets";
+constexpr char AUTHOR[] = "Yurko Prokopets";
 constexpr int VERSION = 0.1;
 
 Engine eng;
@@ -87,7 +87,7 @@ int main(int argc, char **argv)
 					eng.loadPosition(fen, omitCounters);
 					if (fenTokenEnd != tokens.end() && *fenTokenEnd == "moves")
 						for (auto moveStrIt = next(fenTokenEnd); moveStrIt != tokens.end(); ++moveStrIt)
-							eng.DoMove(Move::fromUCI(*moveStrIt));
+							eng.DoMove(eng.moveFromUCI(*moveStrIt));
 				}
 				else
 					errorLog("Warning: wrong UCI position, ignored. 'input' = '" + input + "'");

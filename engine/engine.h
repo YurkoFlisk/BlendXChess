@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 #include <list>
+#include <atomic>
+#include <condition_variable>
 #include <unordered_map>
 #include <chrono>
 #include "position.h"
@@ -53,16 +55,20 @@ public:
 	// Destructor
 	~Engine(void) = default;
 	// Getters
+	inline bool isInSearch(void) const;
 	inline GameState getGameState(void) const;
 	inline DrawCause getDrawCause(void) const;
 	inline int getTimeLimit(void) const; // ms
+	inline int getThreadCount(void) const;
+	inline int getMaxThreadCount(void) const;
 	// Setters
 	inline void setTimeLimit(int);
+	inline void setThreadCount(int);
 	// Initialization (should be done before creation of any Engine instance)
 	static void initialize(void);
 	// Clear position and search info (everything except TT)
 	void clear(void);
-	// Reset game
+	// Reset game (stops search if there's any)
 	void reset(void);
 	// Update game state
 	void updateGameState(void);
@@ -107,8 +113,10 @@ protected:
 	bool drawByMaterial(void) const;
 	// Whether position is threefold repeated
 	bool threefoldRepetitionDraw(void) const;
+	// Internal AI logic (coordinates searching process, launches PVS-threads)
+	void search(void);
 	// Internal AI logic (Principal Variation Search)
-	// Get position score by searching with given depth
+	// Gets position score by searching with given depth and alpha-beta window
 	Score pvs(Depth, Score, Score);
 	// Static evaluation
 	Score evaluate(void);
@@ -143,12 +151,24 @@ protected:
 	int searchPly;
 	// Interval of entries to pvs function between two consecutive timeout checks
 	int timeCheckCounter;
-	// Timelimit of AI thinking
+	// Timelimit of searching
 	int timeLimit;
+	// Number of threads to use in search
+	int threadCount;
+	// Maximum number of threads available
+	int maxThreadCount;
 	// Count of TT hits
 	int ttHits;
-	// Whether search already timed out
-	bool timeout;
+	// Whether move search has already timed out
+	std::atomic_bool stopSearch;
+	// Whether move search is in progress
+	std::atomic_bool inSearch;
+	// Main search thread (mainly for coordination of search)
+	std::thread mainSearchThread;
+	// Actual search threads
+	std::vector<std::thread> searchThreads;
+	// Notifier of search ending
+	// std::condition_variable searchStoppedNotifier;
 	// Start time of AI thinking in AIMove function
 	std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
 	// Game history, which consists of all moves made from the starting position
@@ -200,6 +220,11 @@ inline Score Engine::scoreFromTT(Score score) const
 		score < SCORE_LOSE_MAX ? score + searchPly : score;
 }
 
+inline bool Engine::isInSearch(void) const
+{
+	return inSearch;
+}
+
 inline GameState Engine::getGameState(void) const
 {
 	return gameState;
@@ -215,9 +240,24 @@ inline int Engine::getTimeLimit(void) const
 	return timeLimit;
 }
 
+inline int Engine::getThreadCount(void) const
+{
+	return threadCount;
+}
+
+inline int Engine::getMaxThreadCount(void) const
+{
+	return maxThreadCount;
+}
+
 inline void Engine::setTimeLimit(int tL)
 {
 	timeLimit = tL;
+}
+
+inline void Engine::setThreadCount(int threadCnt)
+{
+	threadCount = std::clamp(threadCnt, 1, maxThreadCount);
 }
 
 #endif
