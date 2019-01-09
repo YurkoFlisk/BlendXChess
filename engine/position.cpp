@@ -132,13 +132,16 @@ Bitboard Position::allAttackers(Square sq, Side by) const
 
 //============================================================
 // Function for doing a move and updating all board state information
+// Performs given move if legal and updates necessary info
+// Returns false if the move is illegal, otherwise
+// returns true and fills position info for undo
 //============================================================
-void Position::doMove(Move move)
+void Position::doMove(Move move, PositionInfo& outPrevInfo)
 {
 	const Square from = move.from(), to = move.to();
 	const MoveType type = move.type();
 	const PieceType from_pt = getPieceType(board[from]);
-	prevStates[gamePly] = info;
+	outPrevInfo = info;
 	if (info.epSquare != Sq::NONE)
 	{
 		info.keyZobrist ^= ZobristEP[info.epSquare.file()];
@@ -204,7 +207,7 @@ void Position::doMove(Move move)
 //============================================================
 // Function for undoing a move and restoring to a previous state
 //============================================================
-void Position::undoMove(Move move)
+void Position::undoMove(Move move, const PositionInfo& prevInfo)
 {
 	const Square from = move.from(), to = move.to();
 	const MoveType type = move.type();
@@ -228,7 +231,7 @@ void Position::undoMove(Move move)
 		movePiece(Square(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('f') : fileFromAN('d')),
 			Square(turn == WHITE ? 0 : 7, kingSide ? fileFromAN('h') : fileFromAN('a')));
 	}
-	info = prevStates[gamePly];
+	info = prevInfo;
 }
 
 //============================================================

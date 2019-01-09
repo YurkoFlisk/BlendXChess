@@ -10,8 +10,8 @@
 // Constructor
 //============================================================
 template<bool LEGAL>
-MoveManager<LEGAL>::MoveManager(Engine& eng, Move ttMove)
-	: eng(eng), ttMove(ttMove), state(MM_TTMOVE)
+MoveManager<LEGAL>::MoveManager(Position& pos, Move ttMove)
+	: pos(pos), ttMove(ttMove), state(MM_TTMOVE)
 {}
 
 //============================================================
@@ -25,7 +25,7 @@ Move MoveManager<LEGAL>::next(void)
 	{
 	case MM_TTMOVE:
 		state = MM_GENMOVES;
-		if (eng.isPseudoLegal(ttMove)) // we check this because there could be hash collision
+		if (pos.isPseudoLegal(ttMove)) // we check this because there could be hash collision
 		{
 #ifdef ENGINE_DEBUG
 			eng.generatePseudolegalMoves(moveList);
@@ -41,7 +41,7 @@ Move MoveManager<LEGAL>::next(void)
 #endif
 			if constexpr (LEGAL)
 			{
-				if (eng.isLegal(ttMove))
+				if (pos.isLegal(ttMove))
 					return ttMove;
 			}
 			else
@@ -65,10 +65,10 @@ Move MoveManager<LEGAL>::next(void)
 		// [[fallthrough]] // if ttMove is inappropriate, we should proceed
 	case MM_GENMOVES:
 		if constexpr (LEGAL)
-			eng.generateLegalMoves(moveList);
+			pos.generateLegalMoves(moveList);
 		else
-			eng.generatePseudolegalMoves(moveList);
-		eng.scoreMoves(moveList);
+			pos.generatePseudolegalMoves(moveList);
+		pos.scoreMoves(moveList);
 		state = MM_GENERATED;
 		// [[fallthrough]]
 	case MM_GENERATED:

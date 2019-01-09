@@ -10,7 +10,7 @@
 #include "engine/engine.h"
 
 using namespace std;
-Engine eng;
+Engine pos;
 
 //============================================================
 // Main function
@@ -24,12 +24,12 @@ int main(/*int argc, char **argv*/)
 	int nodes, timeLimit, inDepth, ttHits, perftDepth;
 	Move cpuMove;
 	string strMove, path, perft;
-	eng.reset();
+	pos.reset();
 #ifndef ENGINE_DEBUG
 	for (int i = 1; i <= 5; ++i)
 	{
 		auto st = chrono::high_resolution_clock::now();
-		cout << eng.perft(i); // perft<true>
+		cout << pos.perft(i); // perft<true>
 		auto en = chrono::high_resolution_clock::now();
 		cout << " Perft("<< i << ") on initial position is " << chrono::duration_cast<
 			chrono::milliseconds>(en - st).count() << "ms\n";
@@ -51,7 +51,7 @@ int main(/*int argc, char **argv*/)
 			ifstream in(path);
 			try
 			{
-				eng.loadPosition(in, true);
+				pos.loadPosition(in, true);
 			}
 			catch (const runtime_error& err)
 			{
@@ -75,7 +75,7 @@ int main(/*int argc, char **argv*/)
 				for (int i = 1; i <= perftDepth; ++i)
 				{
 					auto st = chrono::high_resolution_clock::now();
-					cout << eng.perft<true>(i);
+					cout << pos.perft<true>(i);
 					auto en = chrono::high_resolution_clock::now();
 					cout << " Perft(" << i << ") on given is " << chrono::duration_cast<
 						chrono::milliseconds>(en - st).count() << "ms\n";
@@ -90,7 +90,7 @@ int main(/*int argc, char **argv*/)
 			getline(cin, path);
 			ifstream in(path);
 			while (getline(in, strMove))
-				if (!eng.DoMove(strMove))
+				if (!pos.DoMove(strMove))
 				{
 					cout << "Wrong move " << strMove << " in input.txt" << endl;
 					return 0;
@@ -108,40 +108,40 @@ int main(/*int argc, char **argv*/)
 		else
 			userTurn = BLACK;
 		depth = inDepth;
-		eng.setTimeLimit(timeLimit);
+		pos.setTimeLimit(timeLimit);
 		while (true)
 		{
-			if (eng.getTurn() == userTurn)
+			if (pos.getTurn() == userTurn)
 			{
 				do
 				{
 					cout << "Enter your move please (Re - restart game): ";
 					cin >> strMove;
-				} while (!(strMove == "Re" || eng.DoMove(strMove)));
+				} while (!(strMove == "Re" || pos.DoMove(strMove)));
 				if (strMove == "Re")
 				{
 					cout << "Restarting..." << endl;
-					eng.reset();
+					pos.reset();
 				}
 			}
 			else
 			{
 				auto st = chrono::high_resolution_clock::now();
-				const Score score = eng.AIMove(cpuMove, depth, resDepth, nodes, ttHits);
+				const Score score = pos.AIMove(cpuMove, depth, resDepth, nodes, ttHits);
 				auto en = chrono::high_resolution_clock::now();
-				eng.DoMove(cpuMove);
+				pos.DoMove(cpuMove);
 				cout << cpuMove.toAN();
 				cout << ' ' << nodes << " nodes searched in "
 					<< chrono::duration_cast<chrono::milliseconds>(en - st).count()
 					<< " ms to depth " << (int)resDepth << ". The score is " << score << ". "
 					<< ttFreeEntries << " free slots in TT. " << ttHits << " hits made." << endl;
 			}
-			if (eng.getGameState() != GS_ACTIVE)
+			if (pos.getGameState() != GS_ACTIVE)
 			{
-				if (eng.getGameState() == GS_DRAW)
+				if (pos.getGameState() == GS_DRAW)
 				{
-					const DrawCause drawCause = eng.getDrawCause();
-					cout << "Draw! Cause: " << eng.getDrawCause() << endl;
+					const DrawCause drawCause = pos.getDrawCause();
+					cout << "Draw! Cause: " << pos.getDrawCause() << endl;
 					switch (drawCause)
 					{
 					case DC_RULE_50: cout << "Rule 50"; break;
@@ -150,12 +150,12 @@ int main(/*int argc, char **argv*/)
 					default: cout << "Unknown"; break;
 					}
 				}
-				else if (eng.getGameState() == GS_WHITE_WIN)
+				else if (pos.getGameState() == GS_WHITE_WIN)
 					cout << "Checkmate! White win" << endl;
-				else if (eng.getGameState() == GS_BLACK_WIN)
+				else if (pos.getGameState() == GS_BLACK_WIN)
 					cout << "Checkmate! Black win" << endl;
 				std::ofstream gameLog("lastGame.txt");
-				eng.writeGame(gameLog);
+				pos.writeGame(gameLog);
 				gameLog.close();
 				break;
 			}

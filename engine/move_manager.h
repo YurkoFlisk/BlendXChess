@@ -24,11 +24,11 @@ class MoveManager
 {
 public:
 	// Constructor
-	MoveManager(Engine& eng, Move ttMove);
+	MoveManager(Position& pos, Move ttMove);
 	// Returns next picked move or MOVE_NONE if none left
 	Move next(void);
 private:
-	Engine& eng;
+	Position& pos;
 	MMState state;
 	Move ttMove;
 	MoveList moveList;

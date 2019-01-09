@@ -17,7 +17,7 @@ constexpr char ENGINE_NAME[] = "BlendX";
 constexpr char AUTHOR[] = "Yurko Prokopets";
 constexpr int VERSION = 0.1;
 
-Engine eng;
+Engine pos;
 
 //============================================================
 // Tokenizes input string by default (space) delimiter
@@ -46,7 +46,7 @@ void errorLog(const string& what)
 //============================================================
 int main(int argc, char **argv)
 {
-	eng.initialize();
+	pos.initialize();
 	string input, command, fen;
 	bool loop = true;
 	while (loop && getline(cin, input))
@@ -72,22 +72,22 @@ int main(int argc, char **argv)
 			}
 			else if (command == "ucinewgame")
 			{
-				eng.reset();
+				pos.reset();
 			}
 			else if (command == "position")
 			{
 				if (tokens[1] == "startpos")
-					eng.reset();
+					pos.reset();
 				else if (tokens[1] == "fen")
 				{
 					const bool omitCounters = (tokens.size() < 7 || tokens.at(6) == "moves");
 					const auto fenTokenEnd = tokens.begin() + (omitCounters ? 6 : 8);
 					fen = accumulate(tokens.begin() + 3, fenTokenEnd, tokens[2],
 						[](const string& s1, const string& s2) {return s1 + " " + s2; });
-					eng.loadPosition(fen, omitCounters);
+					pos.loadPosition(fen, omitCounters);
 					if (fenTokenEnd != tokens.end() && *fenTokenEnd == "moves")
 						for (auto moveStrIt = next(fenTokenEnd); moveStrIt != tokens.end(); ++moveStrIt)
-							eng.DoMove(eng.moveFromUCI(*moveStrIt));
+							pos.DoMove(pos.moveFromUCI(*moveStrIt));
 				}
 				else
 					errorLog("Warning: wrong UCI position, ignored. 'input' = '" + input + "'");

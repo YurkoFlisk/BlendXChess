@@ -43,9 +43,13 @@ constexpr inline bool operator!=(PositionInfo p1, PositionInfo p2)
 
 class Position
 {
+	friend class Engine;
+	friend class Searcher;
 public:
-	// Constructor
+	// Default constructor
 	Position(void) = default;
+	// Copy constructor
+	Position(const Position&);
 	// Destructor
 	~Position(void) = default;
 	// Getters
@@ -93,8 +97,10 @@ protected:
 	// Assumes only singular castling right arguments
 	inline void removeCastlingRight(CastlingRight);
 	// Internal doing and undoing moves
-	void doMove(Move);
-	void undoMove(Move);
+	void doMove(Move, PositionInfo&);
+	void undoMove(Move, const PositionInfo&);
+	// Whether the move is a capture
+	inline bool isCaptureMove(Move) const;
 	// Internal test for pseudo-legality (still assumes some conditions which TT-move must satisfy)
 	bool isPseudoLegal(Move);
 	// Internal test for legality (assumes pseudo-legality of argument)
@@ -141,13 +147,14 @@ protected:
 	// Information about position (various parameters that should be reversible during move doing-undoing)
 	PositionInfo info;
 	// Stack of previous states
-	PositionInfo prevStates[MAX_GAME_PLY];
+	// PositionInfo prevStates[MAX_GAME_PLY];
 	// Piece-square score. It is updated incrementally
 	Score psqScore;
 	// Other
-	int gamePly;
+	int gamePly; // !! NOT search ply !!
 	Side turn;
 };
+constexpr int test = sizeof(Position);
 
 //============================================================
 // Implementation of inline functions
@@ -166,6 +173,11 @@ inline int Position::getTurn(void) const noexcept
 inline Key Position::getZobristKey(void) const noexcept
 {
 	return info.keyZobrist;
+}
+
+inline bool Position::isCaptureMove(Move move) const
+{
+	return board[move.to()] != PIECE_NULL;
 }
 
 inline Bitboard Position::pieceBB(Side c, PieceType pt) const
@@ -244,9 +256,10 @@ inline void Position::removeCastlingRight(CastlingRight cr)
 inline bool Position::isLegal(Move move)
 {
 	// MAYBE TEMPORARY (relatively slow and easy approach is used)
-	doMove(move);
+	PositionInfo prevState;
+	doMove(move, prevState);
 	const bool legal = !isAttacked(pieceSq[opposite(turn)][KING][0], turn);
-	undoMove(move);
+	undoMove(move, prevState);
 	return legal;
 }
 

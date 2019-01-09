@@ -13,7 +13,7 @@
 // Constructor
 //============================================================
 Engine::Engine(void)
-	: gameState(GS_DRAW), timeLimit(TIME_LIMIT_DEFAULT)
+	: gameState(GS_DRAW)
 {
 	reset();
 }
@@ -23,6 +23,7 @@ Engine::Engine(void)
 //============================================================
 void Engine::initialize(void)
 {
+	timeLimit = TIME_LIMIT_DEFAULT;
 	initPSQ();
 	initBB();
 	initZobrist();
@@ -33,7 +34,7 @@ void Engine::initialize(void)
 //============================================================
 void Engine::clear(void)
 {
-	Position::clear();
+	stablePos.clear();
 	lastSearchNodes = 0;
 	gameState = GS_UNDEFINED;
 	// Killers
@@ -59,12 +60,16 @@ void Engine::clear(void)
 void Engine::reset(void)
 {
 	// Update maximum available threads info
-	...
+	maxThreadCount = std::thread::hardware_concurrency();
 	// If we are in search, stop it
 	if (inSearch)
-		;// searchStoppedNotifier.wait; !! TODO !!
+	{
+		assert(mainSearchThread.joinable());
+		stopSearch = true;
+		mainSearchThread.join();// searchStoppedNotifier.wait; !! TODO !!
+	}
 	clear();
-	Position::reset(); // Position::clear will also be called from here but it's not crucial
+	stablePos.reset(); // Position::clear will also be called from here but it's not crucial
 	gameState = GS_ACTIVE;
 	// Killers
 	for (auto& killer : killers)
@@ -86,16 +91,16 @@ void Engine::reset(void)
 //============================================================
 bool Engine::drawByMaterial(void) const
 {
-	if (pieceCount[WHITE][PT_ALL] > 2 || pieceCount[BLACK][PT_ALL] > 2)
+	if (stablePos.pieceCount[WHITE][PT_ALL] > 2 || stablePos.pieceCount[BLACK][PT_ALL] > 2)
 		return false;
-	if (pieceCount[WHITE][PT_ALL] == 1 && pieceCount[BLACK][PT_ALL] == 1)
+	if (stablePos.pieceCount[WHITE][PT_ALL] == 1 && stablePos.pieceCount[BLACK][PT_ALL] == 1)
 		return true;
 	for (Side side : {WHITE, BLACK})
-		if (pieceCount[opposite(side)][PT_ALL] == 1 &&
-			(pieceCount[side][BISHOP] == 1 || pieceCount[side][KNIGHT] == 1))
+		if (stablePos.pieceCount[opposite(side)][PT_ALL] == 1 &&
+			(stablePos.pieceCount[side][BISHOP] == 1 || stablePos.pieceCount[side][KNIGHT] == 1))
 			return true;
-	if (pieceCount[WHITE][BISHOP] == 1 && pieceCount[BLACK][BISHOP] == 1 &&
-		pieceSq[WHITE][BISHOP][0].color() == pieceSq[BLACK][BISHOP][0].color())
+	if (stablePos.pieceCount[WHITE][BISHOP] == 1 && stablePos.pieceCount[BLACK][BISHOP] == 1 &&
+		stablePos.pieceSq[WHITE][BISHOP][0].color() == stablePos.pieceSq[BLACK][BISHOP][0].color())
 		return true;
 	return false;
 }
@@ -106,7 +111,7 @@ bool Engine::drawByMaterial(void) const
 bool Engine::threefoldRepetitionDraw(void) const
 {
 	std::stringstream positionFEN;
-	writePosition(positionFEN, true); // Positions are considered equal iff reduced FENs are
+	stablePos.writePosition(positionFEN, true); // Positions are considered equal iff reduced FENs are
 	const auto iter = positionRepeats.find(positionFEN.str());
 	return iter != positionRepeats.end() && iter->second >= 3;
 }
@@ -119,10 +124,11 @@ void Engine::updateGameState(void)
 	if (inSearch)
 		return;
 	MoveList moveList;
-	generateLegalMoves(moveList);
+	stablePos.generateLegalMoves(moveList);
 	if (moveList.empty())
-		gameState = isInCheck() ? (turn == WHITE ? GS_BLACK_WIN : GS_WHITE_WIN) : GS_DRAW;
-	else if (info.rule50 >= 100)
+		gameState = stablePos.isInCheck() ? (stablePos.turn == WHITE ?
+			GS_BLACK_WIN : GS_WHITE_WIN) : GS_DRAW;
+	else if (stablePos.info.rule50 >= 100)
 		gameState = GS_DRAW, drawCause = DC_RULE_50;
 	else if (drawByMaterial())
 		gameState = GS_DRAW, drawCause = DC_MATERIAL;
@@ -145,7 +151,7 @@ bool Engine::DoMove(Move move)
 		return false;
 	// Generate legal moves
 	MoveList legalMoves;
-	generateLegalMovesEx(legalMoves);
+	stablePos.generateLegalMovesEx(legalMoves);
 	bool found = false;
 	// Check whether given move is among legal ones
 	for (int i = 0; i < legalMoves.count(); ++i)
@@ -158,11 +164,11 @@ bool Engine::DoMove(Move move)
 	// and convert it to SAN notation (using this in updating game information)
 	if (!found)
 		return false;
-	std::string moveSAN = moveToSAN(move);
-	doMove(move);
+	std::string moveSAN = stablePos.moveToSAN(move);
+	stablePos.doMove(move);
 	// Update game history and position counter
 	std::stringstream positionFEN;
-	writePosition(positionFEN, true);
+	stablePos.writePosition(positionFEN, true);
 	++positionRepeats[positionFEN.str()];
 	gameHistory.push_back({ move, moveSAN });
 	// Update game state
@@ -185,7 +191,7 @@ bool Engine::DoMove(const std::string& moveStr)
 	// Convert the move from string representation to Move type. Legality there is
 	// checked only partially (to the stage when move is convertible to Move representation),
 	// and MOVE_NONE is returned in case of error
-	const Move move = moveFromAN(moveStr);
+	const Move move = stablePos.moveFromAN(moveStr);
 	// Use Move type representation of move for next actions
 	return DoMove(move);
 }
@@ -206,14 +212,14 @@ bool Engine::DoMoveSAN(const std::string& moveSAN)
 	// Try to reveal the move from SAN format and return false in case of illegal one
 	try
 	{
-		move = moveFromSAN(moveSAN);
+		move = stablePos.moveFromSAN(moveSAN);
 	}
 	catch (const std::runtime_error&)
 	{
 		return false;
 	}
 	// If convertion was successfull, we already know that move is legal
-	doMove(move);
+	stablePos.doMove(move);
 	// Update game state
 	updateGameState();
 	// Update game history
@@ -230,7 +236,7 @@ bool Engine::UndoMove(void)
 {
 	if (gameHistory.empty())
 		return false;
-	undoMove(gameHistory.back().move);
+	stablePos.undoMove(gameHistory.back().move);
 	gameHistory.pop_back();
 	updateGameState();
 	return true;
@@ -282,9 +288,9 @@ void Engine::loadGame(std::istream& istr)
 	static constexpr char delim = '.';
 	while (true)
 	{
-		const int expectedMN = gamePly / 2 + 1;
+		const int expectedMN = stablePos.gamePly / 2 + 1;
 		// If it's white's turn, move number (equal to expectedMN) should be present before it
-		if (turn == WHITE)
+		if (stablePos.turn == WHITE)
 		{
 			int moveNumber;
 			istr >> moveNumber;
@@ -303,7 +309,7 @@ void Engine::loadGame(std::istream& istr)
 		if (istr.eof())
 			break;
 		if (!istr || !DoMoveSAN(moveSAN))
-			throw std::runtime_error((turn == WHITE ? "White " : "Black ")
+			throw std::runtime_error((stablePos.turn == WHITE ? "White " : "Black ")
 				+ std::string("move at position ") + std::to_string(expectedMN) + " is illegal");
 		if (gameState != GS_ACTIVE)
 			break;
@@ -330,66 +336,67 @@ void Engine::writeGame(std::ostream& ostr)
 // Internal AI logic
 // Static evaluation
 //============================================================
-Score Engine::evaluate(void)
+Score Engine::evaluate(SearchState& ss)
 {
-	score = psqScore;
-	return turn == WHITE ? score : -score;
+	Score score = ss.pos.psqScore;
+	return ss.pos.turn == WHITE ? score : -score;
 }
 
 //============================================================
 // Static exchange evaluation
 //============================================================
-Score Engine::SEE(Square sq, Side by)
+Score Engine::SEE(Square sq, Side by, Position& pos)
 {
-	const Square from = leastAttacker(sq, by);
+	const Square from = pos.leastAttacker(sq, by);
 	if (from == Sq::NONE)
 		return SCORE_ZERO;
-	const Piece capt = board[sq];
+	const Piece capt = pos.board[sq];
 	assert(capt != PIECE_NULL);
-	removePiece(sq);
-	movePiece(from, sq);
-	const Score value = std::max(0, ptWeight[getPieceType(capt)] - SEE(sq, opposite(by)));
-	movePiece(sq, from);
-	putPiece(sq, getPieceSide(capt), getPieceType(capt));
+	pos.removePiece(sq);
+	pos.movePiece(from, sq);
+	const Score value = std::max(0, ptWeight[getPieceType(capt)] - SEE(sq, opposite(by), pos));
+	pos.movePiece(sq, from);
+	pos.putPiece(sq, getPieceSide(capt), getPieceType(capt));
 	return value;
 }
 
 //============================================================
 // Static exchange evaluation of specified capture move
 //============================================================
-Score Engine::SEECapture(Square from, Square to, Side by)
+Score Engine::SEECapture(Square from, Square to, Side by, Position& pos)
 {
-	const Piece capt = board[to];
+	const Piece capt = pos.board[to];
 	assert(capt != PIECE_NULL);
-	removePiece(to);
-	movePiece(from, to);
-	const Score value = ptWeight[getPieceType(capt)] - SEE(to, opposite(by));
-	movePiece(to, from);
-	putPiece(to, getPieceSide(capt), getPieceType(capt));
+	pos.removePiece(to);
+	pos.movePiece(from, to);
+	const Score value = ptWeight[getPieceType(capt)] - SEE(to, opposite(by), pos);
+	pos.movePiece(to, from);
+	pos.putPiece(to, getPieceSide(capt), getPieceType(capt));
 	return value;
 }
 
 //============================================================
 // Scores each move from moveList
 //============================================================
-void Engine::scoreMoves(MoveList& moveList)
+void Engine::scoreMoves(MoveList& moveList, SearchState& ss)
 {
+	Position& pos = ss.pos;
 	for (int i = 0; i < moveList.count(); ++i)
 	{
 		MLNode& moveNode = moveList[i];
 		const Move& move = moveNode.move;
 		moveNode.score = history[move.from()][move.to()];
-		if (isCaptureMove(move))
-			moveNode.score += MS_CAPTURE_BONUS_VICTIM[getPieceType(board[move.to()])]
-				+ MS_CAPTURE_BONUS_ATTACKER[getPieceType(board[move.from()])];
+		if (pos.isCaptureMove(move))
+			moveNode.score += MS_CAPTURE_BONUS_VICTIM[getPieceType(pos.board[move.to()])]
+				+ MS_CAPTURE_BONUS_ATTACKER[getPieceType(pos.board[move.from()])];
 			//moveNode.score += MS_SEE_MULT * SEECapture(move.from(), move.to(), turn);
 		else
 		{
-			assert(searchPly == 0 || prevMoves[searchPly - 1] != MOVE_NONE);
-			if (searchPly > 0 && move == countermoves[prevMoves[searchPly - 1].from()]
-				[prevMoves[searchPly - 1].to()]) // searchPly is NOT 1-biased where it is called
+			assert(ss.searchPly == 0 || ss.prevMoves[ss.searchPly - 1] != MOVE_NONE);
+			if (ss.searchPly > 0 && move == countermoves[ss.prevMoves[ss.searchPly - 1].from()]
+				[ss.prevMoves[ss.searchPly - 1].to()]) // searchPly is NOT 1-biased where it is called
 				moveNode.score += MS_COUNTERMOVE_BONUS;
-			for (auto killerMove : killers[searchPly])
+			for (auto killerMove : killers[ss.searchPly])
 				if (move == killerMove)
 				{
 					moveNode.score += MS_KILLER_BONUS;
@@ -415,17 +422,58 @@ void Engine::updateKillers(int searchPly, Move bestMove)
 }
 
 //============================================================
+// Starts search with given depth (without waiting for the end
+//============================================================
+void Engine::startSearch(Depth depth)
+{
+	// If we are already in search, the new one won't be launched
+	if (inSearch)
+		throw std::runtime_error("Another search is already launched");
+	// Set the inSearch and start the main search thread
+	inSearch = true;
+	mainSearchThread = std::thread(&Engine::search, this, depth);
+	if (!mainSearchThread.joinable())
+		throw std::runtime_error("Unable to create valid main search thread");
+}
+
+//============================================================
+// Ends started search (throws if there was no one) and returns search information
+//============================================================
+Score Engine::endSearch(Move& bestMove, Depth& resDepth, int& nodes, int& hits)
+{
+
+	inSearch = false;
+}
+
+//============================================================
+// Internal AI logic (coordinates searching process, launches PVS-threads)
+//============================================================
+void Engine::search(Depth depth)
+{
+	// Misc
+	if constexpr (TT_HITS_COUNT_ENABLED)
+		ttHits = 0;
+	if constexpr (SEARCH_NODES_COUNT_ENABLED)
+		lastSearchNodes = 0;
+	// 
+	if (threadCount == 1)
+	{
+	}
+}
+
+//============================================================
 // Internal AI logic
 // Quiescent search
 //============================================================
-Score Engine::quiescentSearch(Score alpha, Score beta)
+Score Engine::quiescentSearch(Score alpha, Score beta, SearchState& ss)
 {
 	static constexpr Score DELTA_MARGIN = 330;
 	// Increment search nodes count
 	if constexpr (SEARCH_NODES_COUNT_ENABLED)
 		++lastSearchNodes;
+	Position& pos = ss.pos;
 	// Get stand-pat score
-	const Score standPat = evaluate();
+	const Score standPat = evaluate(ss);
 	// We assume there's always a move that will increase score, so if
 	// stand-pat exceeds beta, we cut this node immediately
 	if (standPat >= beta)
@@ -435,44 +483,45 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 		alpha = standPat;
 	// Generate capture (but, if we are in check, all evasions) list
 	MoveList moveList;
-	generatePseudolegalMoves<MG_CAPTURES>(moveList);
+	pos.generatePseudolegalMoves<MG_CAPTURES>(moveList);
 	// If we are in check and no evasion was found, we are lost
 	if (moveList.empty())
-		return isInCheck() ? SCORE_LOSE + searchPly : standPat;
-	sortMoves(moveList);
+		return pos.isInCheck() ? SCORE_LOSE + ss.searchPly : standPat;
+	sortMoves(moveList, ss);
 	// Test every capture and choose the best one
 	Move move;
+	Score score;
 	bool anyLegalMove = false, prune;
 	for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
 	{
 		move = moveList[moveIdx].move;
 		prune = false;
 		// Delta pruning
-		if (standPat + ptWeight[getPieceType(board[move.to()])] + DELTA_MARGIN < alpha)
+		if (standPat + ptWeight[getPieceType(pos.board[move.to()])] + DELTA_MARGIN < alpha)
 			prune = true;
 		// Test capture with SEE and if it's score is < 0, than prune
-		else if (board[move.to()] != PIECE_NULL && SEECapture(
-			move.from(), move.to(), turn) < SCORE_ZERO)
+		else if (pos.board[move.to()] != PIECE_NULL && SEECapture(
+			move.from(), move.to(), pos.turn, pos) < SCORE_ZERO)
 			prune = true;
 		// Do move
-		doMove(move);
+		doMove(move, ss);
 		// Legality check
-		if (isAttacked(pieceSq[opposite(turn)][KING][0], turn))
+		if (pos.isAttacked(pos.pieceSq[opposite(pos.turn)][KING][0], pos.turn))
 		{
-			undoMove(move);
+			undoMove(move, ss);
 			continue;
 		}
 		anyLegalMove = true;
 		// Here we know that this move is legal and anyLegalMove is updated accordingly, so we can prune
 		if (prune)
 		{
-			undoMove(move);
+			pos.undoMove(move);
 			continue;
 		}
 		// Quiescent search
-		score = -quiescentSearch(-beta, -alpha);
+		score = -quiescentSearch(-beta, -alpha, ss);
 		// Undo move
-		undoMove(move);
+		undoMove(move, ss);
 		// Update alpha
 		if (score > alpha)
 		{
@@ -483,15 +532,7 @@ Score Engine::quiescentSearch(Score alpha, Score beta)
 		}
 	}
 	// Return alpha
-	return anyLegalMove ? alpha : isInCheck() ? SCORE_LOSE + searchPly : standPat;
-}
-
-//============================================================
-// Internal AI logic (coordinates searching process, launches PVS-threads)
-//============================================================
-void Engine::search(void)
-{
-
+	return anyLegalMove ? alpha : pos.isInCheck() ? SCORE_LOSE + ss.searchPly : standPat;
 }
 
 //============================================================
@@ -505,7 +546,6 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 	// If we are already in search, the new one won't be launched
 	if (inSearch)
 		throw std::runtime_error("Another search is already launched");
-	inSearch = true;
 	nodes = 0;
 	// If game is not active, no search is possible
 	if (gameState != GS_ACTIVE)
@@ -515,17 +555,18 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 		if (gameState == GS_DRAW)
 			return SCORE_ZERO;
 		else
-			return (gameState == GS_WHITE_WIN) == (turn == WHITE) ? SCORE_WIN : SCORE_LOSE;
+			return (gameState == GS_WHITE_WIN) == (stablePos.turn == WHITE) ? SCORE_WIN : SCORE_LOSE;
 	}
 	// Misc
 	if constexpr (TT_HITS_COUNT_ENABLED)
 		ttHits = 0;
 	if constexpr (SEARCH_NODES_COUNT_ENABLED)
 		lastSearchNodes = 0;
-	searchPly = 0;
+	inSearch = true;
 	bestMove = MOVE_NONE;
 	int bestScore(SCORE_ZERO);
 	Move move;
+	Score score;
 	for (int i = 0; i <= depth; ++i)
 		killers[i].clear();
 	// Setup time management
@@ -533,8 +574,12 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 	{
 		startTime = std::chrono::high_resolution_clock::now();
 		timeCheckCounter = 0;
-		stopSearch = false;
 	}
+	stopSearch = false;
+	// Setup search state
+	SearchState ss;
+	ss.searchPly = 0;
+	Position& pos = (ss.pos = stablePos);
 	// Iterative deepening
 	for (Depth searchDepth = 1; searchDepth <= depth; ++searchDepth)
 	{
@@ -546,25 +591,25 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 		while (true)
 		{
 			// Initialize move picking manager
-			MoveManager<true> moveManager(*this, curBestMove);
+			MoveManager<true> moveManager(pos, curBestMove);
 			curBestScore = alpha;
 			// Test every move and choose the best one
 			bool pvSearch = true;
 			while ((move = moveManager.next()) != MOVE_NONE)
 			{
 				// Do move
-				doMove(move);
+				doMove(move, ss);
 				// Principal variation search
 				if (pvSearch)
-					score = -pvs(searchDepth - 1, -beta, -curBestScore);
+					score = -pvs(searchDepth - 1, -beta, -curBestScore, ss);
 				else
 				{
-					score = -pvs(searchDepth - 1, -curBestScore - 1, -curBestScore);
+					score = -pvs(searchDepth - 1, -curBestScore - 1, -curBestScore, ss);
 					if (!stopSearch && beta > score && score > curBestScore)
-						score = -pvs(searchDepth - 1, -beta, -score);
+						score = -pvs(searchDepth - 1, -beta, -score, ss);
 				}
 				// Undo move
-				undoMove(move);
+				undoMove(move, ss);
 				// Timeout check
 				if (stopSearch)
 					break;
@@ -603,9 +648,9 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 		bestScore = curBestScore;
 		resDepth = searchDepth;
 		// Update history and killers
-		if (!isCaptureMove(bestMove))
+		if (!pos.isCaptureMove(bestMove))
 		{
-			updateKillers(searchPly, bestMove);
+			updateKillers(ss.searchPly, bestMove);
 			history[bestMove.from()][bestMove.to()] += searchDepth * searchDepth;
 		}
 	}
@@ -614,6 +659,7 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 		nodes = lastSearchNodes;
 	if constexpr (TT_HITS_COUNT_ENABLED)
 		hits = ttHits;
+	inSearch = false;
 	return bestScore;
 }
 
@@ -621,7 +667,7 @@ Score Engine::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, i
 // Internal AI logic (Principal Variation Search)
 // Get position score by searching with given depth
 //============================================================
-Score Engine::pvs(Depth depth, Score alpha, Score beta)
+Score Engine::pvs(Depth depth, Score alpha, Score beta, SearchState& ss)
 {
 	// Time check (if it's enabled)
 	if constexpr (TIME_CHECK_ENABLED)
@@ -638,22 +684,23 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 		}
 	// If depth is zero, we should stop and begin quiescent search
 	if (depth == DEPTH_ZERO)
-		return quiescentSearch(alpha, beta);
+		return quiescentSearch(alpha, beta, ss);
 	// Increment search nodes count
 	if constexpr (SEARCH_NODES_COUNT_ENABLED)
 		++lastSearchNodes;
+	Position& pos = ss.pos;
 	// Check for 50-rule draw
-	if (info.rule50 >= 100)
+	if (pos.info.rule50 >= 100)
 		return SCORE_ZERO;
 	// Transposition table lookup
 	const Score oldAlpha = alpha;
-	const TTEntry* ttEntry = transpositionTable.probe(info.keyZobrist);
+	const TTEntry* ttEntry = transpositionTable.probe(pos.info.keyZobrist);
 	Move move, bestMove, ttMove = MOVE_NONE;
 	if (ttEntry != nullptr)
 	{
 		if (ttEntry->depth >= depth)
 		{
-			const Score ttScore = scoreFromTT(ttEntry->score);
+			const Score ttScore = scoreFromTT(ttEntry->score, ss);
 			if ((ttEntry->bound & BOUND_LOWER) && ttScore > alpha)
 				alpha = ttScore;
 			if ((ttEntry->bound & BOUND_UPPER) && ttScore < beta)
@@ -665,31 +712,31 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 		if constexpr (TT_HITS_COUNT_ENABLED)
 			++ttHits;
 	}
-	MoveManager moveManager(*this, ttMove);
-	Score bestScore = SCORE_LOSE;
+	MoveManager moveManager(pos, ttMove);
+	Score bestScore = SCORE_LOSE, score;
 	bool anyLegalMove = false, pvSearch = true;
 	while ((move = moveManager.next()) != MOVE_NONE)
 	{
 		// Do move
-		doMove(move);
+		doMove(move, ss);
 		// Legality check
-		if (isAttacked(pieceSq[opposite(turn)][KING][0], turn))
+		if (pos.isAttacked(pos.pieceSq[opposite(pos.turn)][KING][0], pos.turn))
 		{
-			undoMove(move);
+			pos.undoMove(move);
 			continue;
 		}
 		anyLegalMove = true;
 		// Principal variation search
 		if (pvSearch)
-			score = -pvs(depth - 1, -beta, -alpha);
+			score = -pvs(depth - 1, -beta, -alpha, ss);
 		else
 		{
-			score = -pvs(depth - 1, -alpha - 1, -alpha);
+			score = -pvs(depth - 1, -alpha - 1, -alpha, ss);
 			if (!stopSearch && beta > score && score > alpha)
-				score = -pvs(depth - 1, -beta, -score);
+				score = -pvs(depth - 1, -beta, -score, ss);
 		}
 		// Undo move
-		undoMove(move);
+		undoMove(move, ss);
 		// Timeout check
 		if (stopSearch)
 			return SCORE_ZERO;
@@ -707,11 +754,12 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 				if (alpha >= beta)
 				{
 					// Update killers, countermoves and history
-					if (!isCaptureMove(move))
+					if (!pos.isCaptureMove(move))
 					{
-						updateKillers(searchPly, move);
+						updateKillers(ss.searchPly, move);
 						history[move.from()][move.to()] += depth * depth;
-						countermoves[prevMoves[searchPly - 1].from()][prevMoves[searchPly - 1].to()] = move;
+						countermoves[ss.prevMoves[ss.searchPly - 1].from()][
+							ss.prevMoves[ss.searchPly - 1].to()] = move;
 					}
 					// Cutoff
 					break;
@@ -721,11 +769,11 @@ Score Engine::pvs(Depth depth, Score alpha, Score beta)
 	}
 	// Save collected info to the transposition table
 	if (anyLegalMove)
-		transpositionTable.store(info.keyZobrist, depth, alpha == oldAlpha ? BOUND_UPPER :
-			alpha < beta ? BOUND_EXACT : BOUND_LOWER, scoreToTT(bestScore),
-			bestMove, gamePly - searchPly); // ! NOT searchPly !
+		transpositionTable.store(pos.info.keyZobrist, depth, alpha == oldAlpha ? BOUND_UPPER :
+			alpha < beta ? BOUND_EXACT : BOUND_LOWER, scoreToTT(bestScore, ss),
+			bestMove, pos.gamePly - ss.searchPly); // ! NOT searchPly !
 	// Return alpha
-	return anyLegalMove ? alpha : isInCheck() ? SCORE_LOSE + searchPly : SCORE_ZERO;
+	return anyLegalMove ? alpha : pos.isInCheck() ? SCORE_LOSE + ss.searchPly : SCORE_ZERO;
 }
 
 //============================================================

@@ -21,6 +21,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)movelist.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)move_manager.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)position.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)search.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)transtable.h" />
   </ItemGroup>
   <ItemGroup>
@@ -30,6 +31,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)movelist.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)move_manager.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)position.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)search.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)transtable.cpp" />
   </ItemGroup>
 </Project>

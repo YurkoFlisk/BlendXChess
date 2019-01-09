@@ -10,7 +10,7 @@
 #include <vector>
 #include <list>
 #include <atomic>
-#include <condition_variable>
+#include <thread>
 #include <unordered_map>
 #include <chrono>
 #include "position.h"
@@ -35,7 +35,7 @@ template<bool> class MoveManager;
 //============================================================
 
 class Engine
-	: public Position
+	// : public Position
 {
 	friend class MoveManager<true>;
 	friend class MoveManager<false>;
@@ -64,7 +64,7 @@ public:
 	// Setters
 	inline void setTimeLimit(int);
 	inline void setThreadCount(int);
-	// Initialization (should be done before creation of any Engine instance)
+	// Initialization (should be done before creation (though can be reset) of any Engine instance)
 	static void initialize(void);
 	// Clear position and search info (everything except TT)
 	void clear(void);
@@ -82,6 +82,10 @@ public:
 	// Main AI function
 	// Returns position score and outputs the best move to the reference parameter
 	Score AIMove(Move&, Depth = DEPTH_MAX, Depth& = _dummyDepth, int& = _dummyInt, int& = _dummyInt);
+	// Starts search with given depth
+	void startSearch(Depth depth);
+	// Ends started search (throws if there was no one) and returns search information
+	Score endSearch(Move&, Depth& = _dummyDepth, int& = _dummyInt, int& = _dummyInt);
 	// Performance test (if MG_LEGAL is true, all moves are tested for legality
 	// during generation and promotions to bishops and rooks are included)
 	template<bool MG_LEGAL = false>
@@ -91,6 +95,13 @@ public:
 	// Write game to the given stream in SAN notation
 	void writeGame(std::ostream&);
 protected:
+	// Struct for storing search state information which should be unique to every PVS-thread
+	struct SearchState
+	{
+		int searchPly;
+		Position pos;
+		Move prevMoves[MAX_SEARCH_PLY];
+	};
 	// Struct for storing game history information
 	struct GHRecord
 	{
@@ -98,71 +109,69 @@ protected:
 		// Move in SAN format (we store it here because it is easier than build it when needed in writeGame method)
 		std::string moveSAN;
 	};
-	// Internal doing and undoing moves with remembering
-	// (assumes searchPly is 1-biased, as in the usual usecase)
-	inline void doMove(Move);
-	inline void undoMove(Move);
-	// Whether the move is a capture
-	inline bool isCaptureMove(Move) const;
+	// Internal doing and undoing moves with remembering and updating search ply
+	static inline void doMove(Move, SearchState&);
+	static inline void undoMove(Move, SearchState&);
+	// Internal doing and undoing moves without remembering and updating search ply
+	static inline void doMoveFast(Move, Position&);
+	static inline void undoMoveFast(Move, Position&);
 	// (Re-)score moves and sort
-	inline void sortMoves(MoveList&);
+	static inline void sortMoves(MoveList&, SearchState&);
 	// Helpers for ply-adjustment of scores (mate ones) when (extracted from)/(inserted to) a transposition table
-	inline Score scoreToTT(Score) const;
-	inline Score scoreFromTT(Score) const;
+	static inline Score scoreToTT(Score, SearchState&);
+	static inline Score scoreFromTT(Score, SearchState&);
 	// Whether position is draw by insufficient material
 	bool drawByMaterial(void) const;
 	// Whether position is threefold repeated
 	bool threefoldRepetitionDraw(void) const;
 	// Internal AI logic (coordinates searching process, launches PVS-threads)
-	void search(void);
+	void search(Depth);
 	// Internal AI logic (Principal Variation Search)
 	// Gets position score by searching with given depth and alpha-beta window
-	Score pvs(Depth, Score, Score);
+	static Score pvs(Depth, Score, Score, SearchState&);
 	// Static evaluation
-	Score evaluate(void);
+	static Score evaluate(SearchState&);
 	// Static exchange evaluation
-	Score SEE(Square, Side);
+	static Score SEE(Square, Side, Position&);
 	// Static exchange evaluation of specified capture move
-	Score SEECapture(Square, Square, Side);
+	static Score SEECapture(Square, Square, Side, Position&);
 	// Quiescent search
-	Score quiescentSearch(Score, Score);
+	static Score quiescentSearch(Score, Score, SearchState&);
 	// Update killer moves
-	void updateKillers(int, Move);
+	static void updateKillers(int, Move);
 	// Move scoring
-	void scoreMoves(MoveList&);
-	// Previous moves (for engine purposes)
-	Move prevMoves[MAX_SEARCH_PLY];
+	static void scoreMoves(MoveList&, SearchState&);
 	// Transposition table
-	TranspositionTable transpositionTable;
+	static TranspositionTable transpositionTable;
 	// History heuristic table
-	MoveScore history[SQUARE_CNT][SQUARE_CNT];
+	static MoveScore history[SQUARE_CNT][SQUARE_CNT];
 	// Countermoves table
-	Move countermoves[SQUARE_CNT][SQUARE_CNT];
+	static Move countermoves[SQUARE_CNT][SQUARE_CNT];
 	// Killer moves
-	KillerList killers[MAX_SEARCH_PLY];
+	static KillerList killers[MAX_SEARCH_PLY];
+	// Current game position (!! not the one changed in-search !!)
+	Position stablePos;
 	// Game state
 	GameState gameState;
 	// Cause of draw game state (valid only if gameState == GS_DRAW)
 	DrawCause drawCause;
 	// Variables in search function
-	int lastSearchNodes;
-	int score;
-	// Ply at the root of search
-	int searchPly;
-	// Interval of entries to pvs function between two consecutive timeout checks
-	int timeCheckCounter;
+	static int lastSearchNodes;
+	// int score;
+	// Interval of entries to pvs function (among all threads) between two consecutive timeout checks
+	static std::atomic_int timeCheckCounter;
 	// Timelimit of searching
-	int timeLimit;
+	static int timeLimit;
 	// Number of threads to use in search
 	int threadCount;
 	// Maximum number of threads available
 	int maxThreadCount;
 	// Count of TT hits
-	int ttHits;
+	static int ttHits;
 	// Whether move search has already timed out
-	std::atomic_bool stopSearch;
+	static std::atomic_bool stopSearch;
 	// Whether move search is in progress
-	std::atomic_bool inSearch;
+	static std::atomic_bool inSearch;
 	// Main search thread (mainly for coordination of search)
 	std::thread mainSearchThread;
 	// Actual search threads
@@ -170,7 +179,7 @@ protected:
 	// Notifier of search ending
 	// std::condition_variable searchStoppedNotifier;
 	// Start time of AI thinking in AIMove function
-	std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
+	static std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
 	// Game history, which consists of all moves made from the starting position
 	std::vector<GHRecord> gameHistory;
 	// Position (stored in reduced FEN) repetition count, for handling threefold repetition draw rule
@@ -184,40 +193,45 @@ private:
 // Implementation of inline functions
 //============================================================
 
-inline void Engine::doMove(Move move)
+//inline void Engine::doMove(Move move, SearchState& ss)
+//{
+//	ss.pos.doMove(move);
+//	ss.prevMoves[ss.searchPly++] = move;
+//}
+//
+//inline void Engine::undoMove(Move move, SearchState& ss)
+//{
+//	ss.pos.undoMove(move);
+//	--ss.searchPly;
+//}
+
+inline void Engine::doMoveFast(Move move, Position& pos)
 {
-	Position::doMove(move);
-	prevMoves[searchPly++] = move;
+	pos.doMove(move);
 }
 
-inline void Engine::undoMove(Move move)
+inline void Engine::undoMoveFast(Move move, Position& pos)
 {
-	Position::undoMove(move);
-	--searchPly;
+	pos.undoMove(move);
 }
 
-inline bool Engine::isCaptureMove(Move move) const
-{
-	return board[move.to()] != PIECE_NULL;
-}
-
-inline void Engine::sortMoves(MoveList& ml)
+inline void Engine::sortMoves(MoveList& ml, SearchState& ss)
 {
 	// ml.reset();
-	scoreMoves(ml);
+	scoreMoves(ml, ss);
 	ml.sort();
 }
 
-inline Score Engine::scoreToTT(Score score) const
+inline Score Engine::scoreToTT(Score score, SearchState& ss)
 {
-	return score > SCORE_WIN_MIN ? score + searchPly :
-		score < SCORE_LOSE_MAX ? score - searchPly : score;
+	return score > SCORE_WIN_MIN ? score + ss.searchPly :
+		score < SCORE_LOSE_MAX ? score - ss.searchPly : score;
 }
 
-inline Score Engine::scoreFromTT(Score score) const
+inline Score Engine::scoreFromTT(Score score, SearchState& ss)
 {
-	return score > SCORE_WIN_MIN ? score - searchPly :
-		score < SCORE_LOSE_MAX ? score + searchPly : score;
+	return score > SCORE_WIN_MIN ? score - ss.searchPly :
+		score < SCORE_LOSE_MAX ? score + ss.searchPly : score;
 }
 
 inline bool Engine::isInSearch(void) const
