@@ -40,26 +40,44 @@ struct SearchOptions
 };
 
 //============================================================
+// Struct for storing some per-thread search info
+//============================================================
+
+struct ThreadInfo
+{
+	std::thread handle;
+	Searcher searcher;
+	Score score; // Score of position evaluated by this thread's search
+	Depth resDepth; // Last completed search depth in ID loop
+	Move bestMove; // !! TODO (PV?) !!
+};
+
+//============================================================
 // Class for organizing potentially multi-threaded search process
 //============================================================
+
 class MultiSearcher
 {
 public:
+	// Constructor
+	MultiSearcher(void);
+	// Setters
+	inline void setThreadCount(int);
 	// Starts search with given depth
 	void startSearch(Depth depth);
 	// Ends started search (throws if there was no one) and returns search information
 	Score endSearch(Move&, Depth& = _dummyDepth, int& = _dummyInt, int& = _dummyInt);
 	// Internal AI logic (coordinates searching process, launches Searcher threads)
-	void search(Depth);
+	void search(const Position&, Depth);
 private:
 	// Shared transposition table
 	TranspositionTable transpositionTable;
 	// Shared search options
-	SearchOptions options;
+	SearchOptions shared;
 	// Main search thread (searches itself and launches/coordinates other threads)
-	std::thread mainSearchThread;
-	// Helper search threads
-	std::vector<std::thread> searchThreads;
+	// std::thread mainSearchThread;
+	// Search threads info by index (main search thread has index 0)
+	std::vector<ThreadInfo> threads;
 	// Whether search is currently launched
 	std::atomic_bool inSearch;
 	// Dummy variables for out reference parameters
@@ -86,7 +104,11 @@ public:
 	static constexpr MoveScore MS_KILLER_BONUS = 1200000;
 	typedef std::list<Move> KillerList;
 	// Constructor
-	Searcher(const Position&, SearchOptions&, TranspositionTable&);
+	Searcher(const Position&, SearchOptions*, TranspositionTable*, ThreadInfo*);
+	// Initializer
+	void initialize(const Position&, SearchOptions*, TranspositionTable*, ThreadInfo*);
+	// Top-level search function that implements iterative deepening with aspiration windows
+	void idSearch(Depth);
 private:
 	// Helpers for ply-adjustment of scores (mate ones) when (extracted from)/(inserted to) a transposition table
 	inline Score scoreToTT(Score);
@@ -118,11 +140,17 @@ private:
 	// Current position
 	Position pos;
 	// Shared search options and info
-	SearchOptions& options;
+	SearchOptions* shared;
 	// Shared transposition table
-	TranspositionTable& transpositionTable;
+	TranspositionTable* transpositionTable;
+	// Thread-specific info
+	ThreadInfo* threadLocal;
+	// ID of the thread where this search is launched 
+	// int threadID;
 	// Ply from the searcher starting position
 	int searchPly;
+	// Age for TT (typically ply at searcher starting position)
+	int ttAge;
 	// Previous moves information, useful for countermove heuristics
 	Move prevMoves[MAX_SEARCH_PLY];
 	// History table
@@ -136,6 +164,16 @@ private:
 //============================================================
 // Implementation of inline functions
 //============================================================
+
+inline void MultiSearcher::setThreadCount(int threadCount)
+{
+	if (inSearch)
+		throw std::runtime_error("Can't change thread count while in search");
+	if (threadCount <= 0)
+		throw std::runtime_error("Thread count can't be non-positive");
+	shared.threadCount = threadCount;
+	threads.resize(threadCount);
+}
 
 inline Score Searcher::scoreToTT(Score score)
 {
