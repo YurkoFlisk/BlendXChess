@@ -131,7 +131,7 @@ Square getLSB(Bitboard bb)
 	if ((bb & 0x1) == 0)
 		++lsb;
 #endif
-	return lsb;
+	return Square(lsb);
 }
 
 //============================================================
@@ -141,7 +141,7 @@ Square popLSB(Bitboard& bb)
 {
 	const long lsbIdx = getLSB(bb);
 	bb &= bb - 1;
-	return lsbIdx;
+	return Square(lsbIdx);
 }
 
 //============================================================

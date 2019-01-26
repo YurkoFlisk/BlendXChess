@@ -3,21 +3,23 @@
 // BlendXChess
 //============================================================
 
-#include "../engine/engine.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
 #include <numeric>
+#include "../engine/engine.h"
 
 using namespace std;
+
+//============================================================
+// General engine info
+//============================================================
 
 constexpr char LOG_FILE[] = "BlendXErrors.log";
 constexpr char ENGINE_NAME[] = "BlendX";
 constexpr char AUTHOR[] = "Yurko Prokopets";
-constexpr int VERSION = 0.1;
-
-Engine pos;
+constexpr char VERSION[] = "0.1";
 
 //============================================================
 // Tokenizes input string by default (space) delimiter
@@ -38,15 +40,24 @@ vector<string> tokenize(string input)
 void errorLog(const string& what)
 {
 	ofstream logFS(LOG_FILE, ios::app);
-	logFS << what;
+	logFS << what << endl;
 }
+
+// Searcher is here because of huge transposition table that it contains
+MultiSearcher searcher;
 
 //============================================================
 // Main function
 //============================================================
 int main(int argc, char **argv)
 {
-	pos.initialize();
+	// Initialization of basic engine-related stuff
+	Game::initialize();
+	Position pos;
+	SearchResults results;
+	SearchOptions options = DEFAULT_SEARCH_OPTIONS;
+	// Default options
+	// Main UCI loop
 	string input, command, fen;
 	bool loop = true;
 	while (loop && getline(cin, input))
@@ -61,7 +72,12 @@ int main(int argc, char **argv)
 			{
 				cout << "id name " << ENGINE_NAME << ' ' << VERSION << endl;
 				cout << "id author " << AUTHOR << endl;
-
+				cout << "option name TimeLimit type spin default " << TIME_LIMIT_DEFAULT
+				     << " min " << TIME_LIMIT_MIN << " max " << TIME_LIMIT_MAX << endl;
+				cout << "option name ThreadCount type spin default " << searcher.getMaxThreadCount()
+				     << " min 1 max " << searcher.getMaxThreadCount();
+				cout << "option name SearchDepth type spin default " << SEARCH_DEPTH_DEFAULT
+				     << " min " << SEARCH_DEPTH_MIN << " max " << SEARCH_DEPTH_MAX;
 				cout << "uciok" << endl;
 			}
 			else if (command == "isready")
@@ -84,21 +100,22 @@ int main(int argc, char **argv)
 					const auto fenTokenEnd = tokens.begin() + (omitCounters ? 6 : 8);
 					fen = accumulate(tokens.begin() + 3, fenTokenEnd, tokens[2],
 						[](const string& s1, const string& s2) {return s1 + " " + s2; });
-					pos.loadPosition(fen, omitCounters);
+					pos.loadFEN(fen, omitCounters);
 					if (fenTokenEnd != tokens.end() && *fenTokenEnd == "moves")
 						for (auto moveStrIt = next(fenTokenEnd); moveStrIt != tokens.end(); ++moveStrIt)
-							pos.DoMove(pos.moveFromUCI(*moveStrIt));
+							pos.DoMove(*moveStrIt, FMT_UCI);
 				}
 				else
 					errorLog("Warning: wrong UCI position, ignored. 'input' = '" + input + "'");
 			}
 			else if (command == "go")
 			{
-
+				searcher.startSearch(pos, options);
 			}
 			else if (command == "stop")
 			{
-
+				results = searcher.endSearch();
+				cout << "bestmove " << pos.moveToStr(results.bestMove, FMT_UCI) << endl;
 			}
 			else if (command == "ponderhit")
 			{
@@ -113,7 +130,7 @@ int main(int argc, char **argv)
 		}
 		catch (const exception& err)
 		{
-			errorLog(string("Error: ") + err.what);
+			errorLog(string("Error: ") + err.what());
 		}
 	}
 	return 0;

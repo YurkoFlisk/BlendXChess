@@ -23,7 +23,6 @@ typedef int16_t Score;
 typedef int32_t MoveScore;
 typedef uint64_t Key;
 typedef uint16_t MoveRaw;
-typedef std::chrono::time_point<std::chrono::high_resolution_clock> TimePoint;
 
 //============================================================
 // Basic constants
@@ -445,7 +444,7 @@ public:
 	// Square relative to a given side (flips row if c is BLACK)
 	constexpr inline Square relativeTo(Side c) const noexcept
 	{
-		return c == WHITE ? *this : sq + FILE_CNT * (RANK_CNT - 1 - (rank() << 1));
+		return c == WHITE ? *this : Square(sq + FILE_CNT * (RANK_CNT - 1 - (rank() << 1)));
 	}
 	constexpr inline char fileAN(void) const noexcept
 	{
@@ -503,7 +502,6 @@ constexpr inline Square shiftD(Square sq, Square d, int cnt = 1) noexcept
 class Move
 {
 public:
-	static Move fromUCI(const std::string& str);
 	inline Move(void) = default;
 	constexpr inline Move(MoveRaw move) noexcept : move(move)
 	{}
@@ -582,10 +580,5 @@ private:
 	}
 	MoveRaw move;
 };
-
-Move Move::fromUCI(const std::string& str)
-{
-	return Move();
-}
 
 #endif

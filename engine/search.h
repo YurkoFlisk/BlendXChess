@@ -11,6 +11,7 @@
 #include <list>
 #include <atomic>
 #include <thread>
+#include <functional>
 
 #if defined(_DEBUG) | defined(DEBUG)
 constexpr bool SEARCH_NODES_COUNT_ENABLED = true;
@@ -23,63 +24,127 @@ constexpr bool TIME_CHECK_ENABLED = true;
 #endif
 constexpr int TIME_CHECK_INTERVAL = 10000; // nodes entered by pvs
 constexpr int TIME_LIMIT_DEFAULT = 5000; // ms
+constexpr int TIME_LIMIT_MIN = 100; // ms
+constexpr int TIME_LIMIT_MAX = 1000000; // ms
+constexpr Depth SEARCH_DEPTH_DEFAULT = 10;
+constexpr Depth SEARCH_DEPTH_MIN = 1;
+constexpr Depth SEARCH_DEPTH_MAX = 100;
 
 //============================================================
-// Struct for storing some shared search options and stats (TODO: maybe separate?)
+// Struct for storing results of search returned by endSearch
+//============================================================
+
+struct SearchResults
+{
+	Score score;
+	Depth resDepth;
+	Move bestMove; // !! TODO (PV?) !!
+};
+
+struct SearchStats
+{
+	int ttHits;
+	int visitedNodes;
+};
+
+//============================================================
+// Struct for sending search info to external event processing
+//============================================================
+
+enum class SearchEventType {
+	NONE,
+	FINISHED, // Sent if search stop is not forced by endSearch
+	INFO // For notifying about updated search results
+};
+
+struct SearchEvent
+{
+	inline SearchEvent(SearchEventType = SearchEventType::NONE,
+		SearchResults = SearchResults());
+	SearchEventType type;
+	SearchResults results; // valid if type == INFO
+};
+
+using EngineProcesser = std::function<void(const SearchEvent&)>;
+
+//============================================================
+// Structs for storing some shared search options and info
 //============================================================
 
 struct SearchOptions
 {
-	TimePoint startTime;
-	int timeLimit; // ms
-	int threadCount;
+	unsigned int timeLimit; // ms
+	unsigned int threadCount;
+	Depth depth;
+	EngineProcesser processer; // External search event processer
+};
+
+const SearchOptions DEFAULT_SEARCH_OPTIONS = SearchOptions{
+	TIME_LIMIT_DEFAULT, std::thread::hardware_concurrency(), SEARCH_DEPTH_DEFAULT };
+
+typedef std::chrono::time_point<std::chrono::high_resolution_clock> TimePoint;
+
+enum class StopCause {
+	END_SEARCH_CALL, TIMEOUT, DEPTH_REACHED
+};
+
+struct SharedInfo
+{
+	TimePoint startTime; // read-only while accessed multithreaded, thus not atomic
 	std::atomic_int timeCheckCounter;
 	std::atomic_int ttHits;
 	std::atomic_int visitedNodes;
 	std::atomic_bool stopSearch;
-};
-
-//============================================================
-// Struct for storing some per-thread search info
-//============================================================
-
-struct ThreadInfo
-{
-	std::thread handle;
-	Searcher searcher;
-	Score score; // Score of position evaluated by this thread's search
-	Depth resDepth; // Last completed search depth in ID loop
-	Move bestMove; // !! TODO (PV?) !!
+	std::atomic_bool externalStop;
+	std::atomic_bool timeout;
+	// Count of threads search(-ing/-ed) specified depth (from root position)
+	std::vector<std::atomic_int> depthSearchedByCnt;
+	StopCause stopCause;
 };
 
 //============================================================
 // Class for organizing potentially multi-threaded search process
 //============================================================
 
+struct ThreadInfo;
+typedef std::vector<ThreadInfo> ThreadList;
+
 class MultiSearcher
 {
 public:
 	// Constructor
 	MultiSearcher(void);
-	// Setters
-	inline void setThreadCount(int);
+	// Getters
+	inline bool isInSearch(void) const;
+	inline int getMaxThreadCount(void) const;
+	// Setup external search event processer
+	inline void setProcesser(const EngineProcesser&);
 	// Starts search with given depth
-	void startSearch(Depth depth);
+	void startSearch(const Position&, const SearchOptions& options = DEFAULT_SEARCH_OPTIONS);
 	// Ends started search (throws if there was no one) and returns search information
-	Score endSearch(Move&, Depth& = _dummyDepth, int& = _dummyInt, int& = _dummyInt);
-	// Internal AI logic (coordinates searching process, launches Searcher threads)
-	void search(const Position&, Depth);
+	SearchResults endSearch(void);
+	// Internal search logic (coordinates searching process, launches Searcher threads)
+	void search(void);
 private:
+	// Setters (actual search parameters are given in startSearch parameters, thus setter is private)
+	inline void setThreadCount(int);
+	// Select (currently) best search thread
+	ThreadList::iterator bestThread(void);
 	// Shared transposition table
 	TranspositionTable transpositionTable;
+	// Shared search info
+	SharedInfo shared;
 	// Shared search options
-	SearchOptions shared;
-	// Main search thread (searches itself and launches/coordinates other threads)
-	// std::thread mainSearchThread;
+	SearchOptions options;
+	// Position
+	Position pos;
 	// Search threads info by index (main search thread has index 0)
+	// Main search thread searches itself and launches/coordinates other threads
 	std::vector<ThreadInfo> threads;
 	// Whether search is currently launched
 	std::atomic_bool inSearch;
+	// Maximum thread count
+	int maxThreadCount;
 	// Dummy variables for out reference parameters
 	static Depth _dummyDepth;
 	static int _dummyInt;
@@ -102,17 +167,21 @@ public:
 	static constexpr MoveScore MS_CAPTURE_BONUS_ATTACKER[PIECETYPE_CNT] = {
 		0, 1000000, 800000, 750000, 400000, 200000 };
 	static constexpr MoveScore MS_KILLER_BONUS = 1200000;
-	typedef std::list<Move> KillerList;
+	using KillerList = Move[MAX_KILLERS_CNT];
+	// Default constructor
+	Searcher(void) = default;
 	// Constructor
-	Searcher(const Position&, SearchOptions*, TranspositionTable*, ThreadInfo*);
+	Searcher(const Position&, SearchOptions*, SharedInfo*, TranspositionTable*, ThreadInfo*);
 	// Initializer
-	void initialize(const Position&, SearchOptions*, TranspositionTable*, ThreadInfo*);
+	void initialize(const Position&, SearchOptions*, SharedInfo*, TranspositionTable*, ThreadInfo*);
 	// Top-level search function that implements iterative deepening with aspiration windows
 	void idSearch(Depth);
+	// Whether this search thread is the main one
+	inline bool isMainThread(void) const;
 private:
 	// Helpers for ply-adjustment of scores (mate ones) when (extracted from)/(inserted to) a transposition table
-	inline Score scoreToTT(Score);
-	inline Score scoreFromTT(Score);
+	inline Score scoreToTT(Score) const;
+	inline Score scoreFromTT(Score) const;
 	// Performs given move if legal on pos and updates necessary info
 	// Returns false if the move is illegal, otherwise
 	// returns true and fills position info for undo
@@ -133,24 +202,22 @@ private:
 	// Update killer moves
 	void updateKillers(int, Move);
 	// Move scoring
-	void scoreMoves(MoveList&);
+	void scoreMoves(MoveList&) const;
 	// (Re-)score moves and sort
-	inline void sortMoves(MoveList&);
+	inline void sortMoves(MoveList&) const;
 	// Data
 	// Current position
 	Position pos;
-	// Shared search options and info
-	SearchOptions* shared;
+	// Shared search options
+	SearchOptions* options;
+	// Shared search info
+	SharedInfo* shared;
 	// Shared transposition table
 	TranspositionTable* transpositionTable;
 	// Thread-specific info
 	ThreadInfo* threadLocal;
-	// ID of the thread where this search is launched 
-	// int threadID;
 	// Ply from the searcher starting position
 	int searchPly;
-	// Age for TT (typically ply at searcher starting position)
-	int ttAge;
 	// Previous moves information, useful for countermove heuristics
 	Move prevMoves[MAX_SEARCH_PLY];
 	// History table
@@ -162,8 +229,41 @@ private:
 };
 
 //============================================================
+// Struct for storing some per-thread search info
+//============================================================
+
+struct ThreadInfo
+{
+	std::thread handle;
+	Searcher searcher;
+	SearchResults results;
+	int ID; // 0 for main thread
+};
+
+//============================================================
 // Implementation of inline functions
 //============================================================
+
+inline SearchEvent::SearchEvent(SearchEventType type, SearchResults results)
+	: type(type), results(results)
+{}
+
+inline bool MultiSearcher::isInSearch(void) const
+{
+	return inSearch;
+}
+
+inline int MultiSearcher::getMaxThreadCount(void) const
+{
+	return maxThreadCount;
+}
+
+inline void MultiSearcher::setProcesser(const EngineProcesser& proc)
+{
+	if (inSearch)
+		throw std::runtime_error("Can't change processer during search");
+	options.processer = proc;
+}
 
 inline void MultiSearcher::setThreadCount(int threadCount)
 {
@@ -171,23 +271,32 @@ inline void MultiSearcher::setThreadCount(int threadCount)
 		throw std::runtime_error("Can't change thread count while in search");
 	if (threadCount <= 0)
 		throw std::runtime_error("Thread count can't be non-positive");
-	shared.threadCount = threadCount;
+	// Update max thread count and clamp thread count if needed
+	maxThreadCount = std::thread::hardware_concurrency();
+	if (threadCount > maxThreadCount)
+		threadCount = maxThreadCount;
+	options.threadCount = threadCount;
 	threads.resize(threadCount);
 }
 
-inline Score Searcher::scoreToTT(Score score)
+inline bool Searcher::isMainThread(void) const
+{
+	return threadLocal->ID == 0;
+}
+
+inline Score Searcher::scoreToTT(Score score) const
 {
 	return score > SCORE_WIN_MIN ? score + searchPly :
 		score < SCORE_LOSE_MAX ? score - searchPly : score;
 }
 
-inline Score Searcher::scoreFromTT(Score score)
+inline Score Searcher::scoreFromTT(Score score) const
 {
 	return score > SCORE_WIN_MIN ? score - searchPly :
 		score < SCORE_LOSE_MAX ? score + searchPly : score;
 }
 
-inline void Searcher::sortMoves(MoveList& ml)
+inline void Searcher::sortMoves(MoveList& ml) const
 {
 	// ml.reset();
 	scoreMoves(ml);

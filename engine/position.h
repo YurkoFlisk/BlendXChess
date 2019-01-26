@@ -8,6 +8,7 @@
 #define _POSITION_H
 #include <utility>
 #include <cassert>
+#include <sstream>
 #include "bitboard.h"
 #include "evaluate.h"
 #include "movelist.h"
@@ -15,6 +16,13 @@
 #ifdef ENGINE_DEBUG
 constexpr bool SORT_GENMOVES_ON_DEBUG = false; // rarely needed and only in debug
 #endif
+
+enum MoveFormat
+{
+	FMT_AN, FMT_SAN, FMT_UCI
+};
+
+constexpr int MOVE_FORMAT_CNT = 3;
 
 //============================================================
 // Struct for storing some information about position
@@ -41,15 +49,19 @@ constexpr inline bool operator!=(PositionInfo p1, PositionInfo p2)
 // Includes board, piece lists, various positional information
 //============================================================
 
+template<bool> class MoveManager;
+
 class Position
 {
-	friend class Engine;
+	friend class Game;
 	friend class Searcher;
+	friend class MoveManager<true>;
+	friend class MoveManager<false>;
 public:
 	// Default constructor
 	Position(void) = default;
 	// Copy constructor
-	Position(const Position&);
+	// Position(const Position&);
 	// Destructor
 	~Position(void) = default;
 	// Getters
@@ -64,6 +76,10 @@ public:
 	void clear(void);
 	// Reset position
 	void reset(void);
+	// Performs a perft for current position, returns count of visited nodes
+	// If MG_LEGAL == true, includes all moves (with promotions to rooks and bishops)
+	template<bool MG_LEGAL = false>
+	int perft(Depth);
 	// Whether a square is attacked by given side
 	bool isAttacked(Square, Side) const;
 	// Least valuable attacker on given square by given side (king is considered most valuable here)
@@ -78,16 +94,28 @@ public:
 	Move moveFromSAN(const std::string&);
 	// Convert a move to SAN notation. It should be valid in current position
 	std::string moveToSAN(Move);
+	// Convert move from given string format
+	Move moveFromStr(const std::string&, MoveFormat);
+	// Convert move to given string format
+	std::string moveToStr(Move, MoveFormat);
 	// Convert a move from UCI notation to Move. It should be valid in current position 
 	Move moveFromUCI(const std::string&);
 	// Convert a move  to UCI notation. It should be valid in current position
 	std::string moveToUCI(Move);
+	// Doing and undoing a move
+	// These are not well optimized and are being interface for external calls
+	// Engine internals (eg in search) use doMove and undoMove instead
+	bool DoMove(Move, PositionInfo* = nullptr);
+	bool DoMove(const std::string&, MoveFormat, Move* = nullptr, PositionInfo* = nullptr);
+	bool UndoMove(Move, const PositionInfo&);
 	// Load position from a given stream in FEN notation (bool parameter says whether to omit move counters)
-	void loadPosition(std::istream&, bool = false);
+	void loadFEN(std::istream&, bool = false);
 	// Load position from a given string in FEN notation (bool parameter says whether to omit move counters)
-	void loadPosition(const std::string&, bool = false);
+	void loadFEN(const std::string&, bool = false);
 	// Write position to a given stream in FEN notation, possibly omitting half- and full-move counters
-	void writePosition(std::ostream&, bool = false) const;
+	void writeFEN(std::ostream&, bool = false) const;
+	// Get positon FEN
+	inline std::string getFEN(bool = false) const;
 protected:
 	// Putting, moving and removing pieces
 	inline void putPiece(Square, Side, PieceType);
@@ -126,7 +154,7 @@ protected:
 	void generateMoves(MoveList&);
 	// Generate moves helpers
 	// Note that when we are in check, all evasions are generated regardless of what MG_TYPE parameter is passed
-	// Useless promotions to rook and bishop are omitted even in case of MG_TYPE == MG_ALL
+	// (Almost) useless promotions to rook and bishop are omitted even in case of MG_TYPE == MG_ALL
 	template<MoveGen MG_TYPE = MG_ALL>
 	inline void generateLegalMoves(MoveList&);
 	template<MoveGen MG_TYPE = MG_ALL>
@@ -154,7 +182,6 @@ protected:
 	int gamePly; // !! NOT search ply !!
 	Side turn;
 };
-constexpr int test = sizeof(Position);
 
 //============================================================
 // Implementation of inline functions
@@ -198,6 +225,13 @@ inline Bitboard Position::emptyBB(void) const
 inline bool Position::isInCheck(void) const
 {
 	return isAttacked(pieceSq[turn][KING][0], opposite(turn));
+}
+
+inline std::string Position::getFEN(bool omitCounters) const
+{
+	std::stringstream fenSS;
+	writeFEN(fenSS, omitCounters);
+	return fenSS.str();
 }
 
 inline void Position::putPiece(Square sq, Side c, PieceType pt)
@@ -319,16 +353,15 @@ inline void Position::addMoveIfSuitable(Move move, MoveList& moves)
 	// If we are looking for legal moves, do a legality check
 	if constexpr (LEGAL)
 	{
-		//if (isLegal(move))
-		//	moves.add(move);
+		PositionInfo prevState;
 		// A pseudolegal move is legal iff the king is not under attack when it is performed
-		doMove(move);
+		doMove(move, prevState);
 		// After doMove, turn has changed until undoMove, so it is critical that in the next two lines we use TURN
 		// Score is set in move scoring function of Engine class, thus omitted
 		if (!isAttacked(pieceSq[TURN][KING][0], opposite(TURN)))
 			moves.add(move);
 		// Restore to a previous state
-		undoMove(move);
+		undoMove(move, prevState);
 	}
 	// If we are looking for pseudolegal moves, don't check anything, as we already know that move is pseudolegal
 	else

@@ -78,6 +78,39 @@ void Position::reset(void)
 }
 
 //============================================================
+// Performance test (if MG_LEGAL is true, all moves are tested for legality
+// during generation and promotions to bishops and rooks are included)
+//============================================================
+template<bool MG_LEGAL>
+int Position::perft(Depth depth)
+{
+	if (depth == 0)
+		return 1;
+	int nodes(0);
+	Move move;
+	MoveList moveList;
+	PositionInfo prevState;
+	if constexpr (MG_LEGAL)
+		generateLegalMovesEx(moveList);
+	else
+		generatePseudolegalMoves(moveList);
+	for (int moveIdx = 0; moveIdx < moveList.count(); ++moveIdx)
+	{
+		move = moveList[moveIdx].move;
+		doMove(move, prevState);
+		if constexpr (!MG_LEGAL)
+			if (isAttacked(pieceSq[opposite(turn)][KING][0], turn))
+			{
+				undoMove(move, prevState);
+				continue;
+			}
+		nodes += thisObj->perft<MG_LEGAL>(depth - 1);
+		undoMove(move, prevState);
+	}
+	return nodes;
+}
+
+//============================================================
 // Whether a square is attacked by given side
 //============================================================
 bool Position::isAttacked(Square sq, Side by) const
@@ -744,10 +777,115 @@ std::string Position::moveToUCI(Move move)
 }
 
 //============================================================
+// Convert move from given string format
+//============================================================
+Move Position::moveFromStr(const std::string& moveStr, MoveFormat moveFormat)
+{
+	switch (moveFormat)
+	{
+	case FMT_AN: return moveFromAN(moveStr);
+	case FMT_SAN: return moveFromSAN(moveStr);
+	case FMT_UCI: return moveFromUCI(moveStr);
+	default: assert(false); return MOVE_NONE; // Should't get here
+	}
+}
+
+//============================================================
+// Convert move to given string format
+//============================================================
+std::string Position::moveToStr(Move move, MoveFormat moveFormat)
+{
+	switch (moveFormat)
+	{
+	case FMT_AN: return move.toAN();
+	case FMT_SAN: return moveToSAN(move);
+	case FMT_UCI: return moveToUCI(move);
+	default: assert(false); return ""; // Should't get here
+	}
+}
+
+//============================================================
+// Do move. Return true if succeded, false otherwise
+// (false may be due to illegal move or inappropriate engine state)
+// It is not well optimized and is an interface for external calls
+// Engine internals use doMove instead
+//============================================================
+bool Position::DoMove(Move move, PositionInfo* prevInfo)
+{
+	// Generate all legal moves
+	MoveList legalMoves;
+	generateLegalMovesEx(legalMoves);
+	// Check whether given move is among legal ones. If it's not, we can't perform it.
+	if (std::find(legalMoves.begin(), legalMoves.end(), move) == legalMoves.end())
+		return false;
+	// Save previous state info in case it's requested
+	if (prevInfo)
+		doMove(move, *prevInfo);
+	else
+	{
+		PositionInfo temp;
+		doMove(move, temp);
+	}
+	return true;
+}
+
+//============================================================
+// Do move given as string of given format.
+// Return true if succeded, false otherwise
+// It is not well optimized and is an interface for external calls
+// Engine internals use doMove instead
+//============================================================
+bool Position::DoMove(const std::string& moveStr, MoveFormat moveFormat,
+	Move* outMove, PositionInfo* prevState)
+{
+	// Convert the move from string representation to Move type. Legality there may be
+	// checked only partially (to the stage when move is convertible to Move representation),
+	// and MOVE_NONE is returned in case of error
+	const Move move = moveFromStr(moveStr, moveFormat);
+	// Use Move type representation of move for next actions
+	if (DoMove(move, prevState))
+	{
+		if (outMove)
+			*outMove = move;
+		return true;
+	}
+	else
+		return false;
+}
+
+//============================================================
+// Undo last move. Return true if succeeded, false otherwise
+// It is not well optimized and is an interface for external calls
+// Engine internals use undoMove instead
+//============================================================
+bool Position::UndoMove(Move move, const PositionInfo& prevInfo)
+{
+	// To check validity of undo we try to perform undo and
+	// see whether the move is among legal ones for resultant position
+	const Position backup = *this;
+	MoveList legalMoves;
+	try
+	{
+		undoMove(move, prevInfo);
+		generateLegalMovesEx(legalMoves);
+		if (std::find(legalMoves.begin(), legalMoves.end(), move) == legalMoves.end())
+			throw std::exception(); // Just to avoid duplicating code of catch block
+	}
+	// There may have been an exception due to uncheked
+	// actions (during undo/generation) in invalid position state
+	catch (...)
+	{
+		*this = backup; // Restore position from potentially invalid state
+		return false;
+	}
+	return true;
+}
+
+//============================================================
 // Load position from a given stream in FEN notation
 // (bool parameter says whether to omit move counters)
 //============================================================
-void Position::loadPosition(std::istream& istr, bool omitCounters)
+void Position::loadFEN(std::istream& istr, bool omitCounters)
 {
 	// Clear current game state
 	clear();
@@ -838,16 +976,16 @@ void Position::loadPosition(std::istream& istr, bool omitCounters)
 // Load position from a given string in FEN notation
 // (bool parameter says whether to omit move counters)
 //============================================================
-void Position::loadPosition(const std::string& str, bool omitCounters)
+void Position::loadFEN(const std::string& str, bool omitCounters)
 {
 	std::istringstream iss(str);
-	loadPosition(iss, omitCounters);
+	loadFEN(iss, omitCounters);
 }
 
 //============================================================
 // Write position to a given stream in FEN notation
 //============================================================
-void Position::writePosition(std::ostream& ostr, bool omitCounters) const
+void Position::writeFEN(std::ostream& ostr, bool omitCounters) const
 {
 	// Piece placement information
 	for (int rank = 7, consecutiveEmpty = 0; rank >= 0; --rank)
@@ -947,3 +1085,5 @@ template void Position::generateMoves<BLACK, MG_CAPTURES, true>(MoveList&);
 template void Position::generateMoves<BLACK, MG_CAPTURES, false>(MoveList&);
 template void Position::generateMoves<BLACK, MG_ALL, true>(MoveList&);
 template void Position::generateMoves<BLACK, MG_ALL, false>(MoveList&);
+template int Position::perft<false>(Depth) const;
+template int Position::perft<true>(Depth) const;

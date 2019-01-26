@@ -8,37 +8,22 @@
 #define _ENGINE_H
 #include <string>
 #include <vector>
-#include <list>
+#include <array>
 #include <atomic>
 #include <thread>
 #include <unordered_map>
 #include <chrono>
 #include "position.h"
 #include "transtable.h"
-
-#if defined(_DEBUG) | defined(DEBUG)
-constexpr bool SEARCH_NODES_COUNT_ENABLED = true;
-constexpr bool TT_HITS_COUNT_ENABLED = true;
-constexpr bool TIME_CHECK_ENABLED = true;
-#else
-constexpr bool SEARCH_NODES_COUNT_ENABLED = true;
-constexpr bool TT_HITS_COUNT_ENABLED = true;
-constexpr bool TIME_CHECK_ENABLED = true;
-#endif
-constexpr int TIME_CHECK_INTERVAL = 10000; // nodes entered by pvs
-constexpr int TIME_LIMIT_DEFAULT = 5000; // ms
-
-template<bool> class MoveManager;
+#include "search.h"
 
 //============================================================
 // Main engine class
 //============================================================
 
-class Engine
+class Game
 	// : public Position
 {
-	friend class MoveManager<true>;
-	friend class MoveManager<false>;
 public:
 	static constexpr int MAX_KILLERS_CNT = 3;
 	static constexpr MoveScore MS_TT_BONUS = 1500000000;
@@ -50,23 +35,24 @@ public:
 		0, 1000000, 800000, 750000, 400000, 200000 };
 	static constexpr MoveScore MS_KILLER_BONUS = 1200000;
 	typedef std::list<Move> KillerList;
+	// Initialization (should be done before creation (though some
+	// can be reset) of any engine-related object instance)
+	static void initialize(void);
 	// Constructor
-	Engine(void);
+	Game(void);
 	// Destructor
-	~Engine(void) = default;
+	~Game(void) = default;
 	// Getters
 	inline bool isInSearch(void) const;
 	inline GameState getGameState(void) const;
 	inline DrawCause getDrawCause(void) const;
-	inline int getTimeLimit(void) const; // ms
-	inline int getThreadCount(void) const;
+	inline const SearchOptions& getSearchOptions(void) const;
+	inline const Position& getPosition(void) const;
 	inline int getMaxThreadCount(void) const;
 	// Setters
-	inline void setTimeLimit(int);
-	inline void setThreadCount(int);
-	// Initialization (should be done before creation (though can be reset) of any Engine instance)
-	static void initialize(void);
-	// Clear position and search info (everything except TT)
+	inline void setSearchOptions(const SearchOptions&);
+	inline void setSearchProcesser(const EngineProcesser&);
+	// Clear game state
 	void clear(void);
 	// Reset game (stops search if there's any)
 	void reset(void);
@@ -74,119 +60,61 @@ public:
 	void updateGameState(void);
 	// Doing and undoing a move
 	// These are not well optimized and are being interface for external calls
-	// Engine internals use doMove and undoMove instead
+	// Engine internals (eg in search) use doMove and undoMove instead
 	bool DoMove(Move);
-	bool DoMove(const std::string&);
-	bool DoMoveSAN(const std::string&);
+	bool DoMove(const std::string&, MoveFormat);
 	bool UndoMove(void);
-	// Main AI function
-	// Returns position score and outputs the best move to the reference parameter
-	Score AIMove(Move&, Depth = DEPTH_MAX, Depth& = _dummyDepth, int& = _dummyInt, int& = _dummyInt);
-	// Starts search with given depth
-	void startSearch(Depth depth);
-	// Ends started search (throws if there was no one) and returns search information
-	Score endSearch(Move&, Depth& = _dummyDepth, int& = _dummyInt, int& = _dummyInt);
-	// Performance test (if MG_LEGAL is true, all moves are tested for legality
-	// during generation and promotions to bishops and rooks are included)
-	template<bool MG_LEGAL = false>
-	int perft(Depth);
+	// Searching interface functions
+	void startSearch(void);
+	SearchResults endSearch();
 	// Load game from the given stream in SAN notation
-	void loadGame(std::istream&);
+	void loadGame(std::istream&, MoveFormat fmt = FMT_SAN);
 	// Write game to the given stream in SAN notation
-	void writeGame(std::ostream&);
+	void writeGame(std::ostream&, MoveFormat fmt = FMT_SAN);
+	// Load position from a given stream in FEN notation (bool parameter says whether to omit move counters)
+	void loadFEN(std::istream&, bool = false);
+	// Load position from a given string in FEN notation (bool parameter says whether to omit move counters)
+	void loadFEN(const std::string&, bool = false);
+	// Write position to a given stream in FEN notation, possibly omitting half- and full-move counters
+	void writeFEN(std::ostream&, bool = false) const;
+	// Get FEN representation of current position, possibly omitting last 2 counters
+	inline std::string getPositionFEN(bool = false) const;
+	// Redirections to Position class
+	template<bool MG_LEGAL = false>
+	inline int perft(Depth);
 protected:
-	// Struct for storing search state information which should be unique to every PVS-thread
-	struct SearchState
-	{
-		int searchPly;
-		Position pos;
-		Move prevMoves[MAX_SEARCH_PLY];
-	};
 	// Struct for storing game history information
 	struct GHRecord
 	{
+		// Move 
 		Move move;
-		// Move in SAN format (we store it here because it is easier than build it when needed in writeGame method)
-		std::string moveSAN;
+		// State info of position from which 'move' was made
+		PositionInfo prevState;
+		// Move in various string formats (we store it here because it
+		// is easier than retrieve it when needed in writeGame method)
+		std::array<std::string, MOVE_FORMAT_CNT> moveStr;
 	};
-	// Internal doing and undoing moves with remembering and updating search ply
-	static inline void doMove(Move, SearchState&);
-	static inline void undoMove(Move, SearchState&);
-	// Internal doing and undoing moves without remembering and updating search ply
-	static inline void doMoveFast(Move, Position&);
-	static inline void undoMoveFast(Move, Position&);
-	// (Re-)score moves and sort
-	static inline void sortMoves(MoveList&, SearchState&);
-	// Helpers for ply-adjustment of scores (mate ones) when (extracted from)/(inserted to) a transposition table
-	static inline Score scoreToTT(Score, SearchState&);
-	static inline Score scoreFromTT(Score, SearchState&);
 	// Whether position is draw by insufficient material
 	bool drawByMaterial(void) const;
 	// Whether position is threefold repeated
 	bool threefoldRepetitionDraw(void) const;
-	// Internal AI logic (coordinates searching process, launches PVS-threads)
-	void search(Depth);
-	// Internal AI logic (Principal Variation Search)
-	// Gets position score by searching with given depth and alpha-beta window
-	static Score pvs(Depth, Score, Score, SearchState&);
-	// Static evaluation
-	static Score evaluate(SearchState&);
-	// Static exchange evaluation
-	static Score SEE(Square, Side, Position&);
-	// Static exchange evaluation of specified capture move
-	static Score SEECapture(Square, Square, Side, Position&);
-	// Quiescent search
-	static Score quiescentSearch(Score, Score, SearchState&);
-	// Update killer moves
-	static void updateKillers(int, Move);
-	// Move scoring
-	static void scoreMoves(MoveList&, SearchState&);
-	// Transposition table
-	static TranspositionTable transpositionTable;
-	// History heuristic table
-	static MoveScore history[SQUARE_CNT][SQUARE_CNT];
-	// Countermoves table
-	static Move countermoves[SQUARE_CNT][SQUARE_CNT];
-	// Killer moves
-	static KillerList killers[MAX_SEARCH_PLY];
 	// Current game position (!! not the one changed in-search !!)
-	Position stablePos;
+	Position pos;
+	// Move searcher
+	MultiSearcher searcher;
+	// Search options (they are rarely changed during 1 game)
+	SearchOptions searchOptions;
+	// Result of last preformed search
+	SearchResults lastSearchResults;
 	// Game state
 	GameState gameState;
 	// Cause of draw game state (valid only if gameState == GS_DRAW)
 	DrawCause drawCause;
-	// Variables in search function
-	static int lastSearchNodes;
-	// int score;
-	// Interval of entries to pvs function (among all threads) between two consecutive timeout checks
-	static std::atomic_int timeCheckCounter;
-	// Timelimit of searching
-	static int timeLimit;
-	// Number of threads to use in search
-	int threadCount;
-	// Maximum number of threads available
-	int maxThreadCount;
-	// Count of TT hits
-	static int ttHits;
-	// Whether move search has already timed out
-	static std::atomic_bool stopSearch;
-	// Whether move search is in progress
-	static std::atomic_bool inSearch;
-	// Main search thread (mainly for coordination of search)
-	std::thread mainSearchThread;
-	// Actual search threads
-	std::vector<std::thread> searchThreads;
-	// Notifier of search ending
-	// std::condition_variable searchStoppedNotifier;
-	// Start time of AI thinking in AIMove function
-	static std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
 	// Game history, which consists of all moves made from the starting position
 	std::vector<GHRecord> gameHistory;
 	// Position (stored in reduced FEN) repetition count, for handling threefold repetition draw rule
 	std::unordered_map<std::string, int> positionRepeats;
-private:
-	static Depth _dummyDepth;
-	static int _dummyInt;
+
 };
 
 //============================================================
@@ -205,73 +133,57 @@ private:
 //	--ss.searchPly;
 //}
 
-inline void Engine::doMoveFast(Move move, Position& pos)
+inline bool Game::isInSearch(void) const
 {
-	pos.doMove(move);
+	return searcher.isInSearch();
 }
 
-inline void Engine::undoMoveFast(Move move, Position& pos)
-{
-	pos.undoMove(move);
-}
-
-inline void Engine::sortMoves(MoveList& ml, SearchState& ss)
-{
-	// ml.reset();
-	scoreMoves(ml, ss);
-	ml.sort();
-}
-
-inline Score Engine::scoreToTT(Score score, SearchState& ss)
-{
-	return score > SCORE_WIN_MIN ? score + ss.searchPly :
-		score < SCORE_LOSE_MAX ? score - ss.searchPly : score;
-}
-
-inline Score Engine::scoreFromTT(Score score, SearchState& ss)
-{
-	return score > SCORE_WIN_MIN ? score - ss.searchPly :
-		score < SCORE_LOSE_MAX ? score + ss.searchPly : score;
-}
-
-inline bool Engine::isInSearch(void) const
-{
-	return inSearch;
-}
-
-inline GameState Engine::getGameState(void) const
+inline GameState Game::getGameState(void) const
 {
 	return gameState;
 }
 
-inline DrawCause Engine::getDrawCause(void) const
+inline DrawCause Game::getDrawCause(void) const
 {
 	return drawCause;
 }
 
-inline int Engine::getTimeLimit(void) const
+inline const SearchOptions& Game::getSearchOptions(void) const
 {
-	return timeLimit;
+	return searchOptions;
 }
 
-inline int Engine::getThreadCount(void) const
+inline const Position& Game::getPosition(void) const
 {
-	return threadCount;
+	return pos;
 }
 
-inline int Engine::getMaxThreadCount(void) const
+inline int Game::getMaxThreadCount(void) const
 {
-	return maxThreadCount;
+	return searcher.getMaxThreadCount();
 }
 
-inline void Engine::setTimeLimit(int tL)
+inline void Game::setSearchOptions(const SearchOptions& options)
 {
-	timeLimit = tL;
+	searchOptions = options;
 }
 
-inline void Engine::setThreadCount(int threadCnt)
+inline void Game::setSearchProcesser(const EngineProcesser& proc)
 {
-	threadCount = std::clamp(threadCnt, 1, maxThreadCount);
+	searcher.setProcesser(proc);
+}
+
+inline std::string Game::getPositionFEN(bool omitCounters) const
+{
+	return pos.getFEN(omitCounters);
+}
+
+template<bool MG_LEGAL>
+inline int Game::perft(Depth depth)
+{
+	if (isInSearch())
+		return 0;
+	return pos.perft<MG_LEGAL>(depth);
 }
 
 #endif

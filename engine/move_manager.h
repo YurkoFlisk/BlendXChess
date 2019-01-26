@@ -8,7 +8,7 @@
 #define _MOVE_MANAGER
 #include "movelist.h"
 
-class Engine;
+class Position;
 
 enum MMState
 {

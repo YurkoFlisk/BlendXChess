@@ -12,39 +12,50 @@
 // Constructor
 //============================================================
 MultiSearcher::MultiSearcher(void)
-	: inSearch(false)
+	: inSearch(false), maxThreadCount(std::thread::hardware_concurrency())
 {}
 
 //============================================================
 // Constructor
 //============================================================
-Searcher::Searcher(const Position& pos, SearchOptions* shared,
+Searcher::Searcher(const Position& pos, SearchOptions* options, SharedInfo* shared,
 	TranspositionTable* tt, ThreadInfo* threadLocal)
-	: pos(pos), shared(shared), transpositionTable(tt), threadLocal(threadLocal)
-{}
+	: pos(pos), options(options), shared(shared),
+	transpositionTable(tt), threadLocal(threadLocal)
+{
+	memset(prevMoves, 0, sizeof(prevMoves));
+	memset(history, 0, sizeof(history));
+	memset(countermoves, 0, sizeof(countermoves));
+}
 
 //============================================================
 // Initializer
 //============================================================
-void Searcher::initialize(const Position& pos, SearchOptions* shared,
+void Searcher::initialize(const Position& pos, SearchOptions* options, SharedInfo* shared,
 	TranspositionTable* tt, ThreadInfo* threadLocal)
 {
-	assert(tt && shared && threadLocal);
-	new(this)Searcher(pos, shared, tt, threadLocal);
+	assert(options && tt && shared && threadLocal);
+	new(this)Searcher(pos, options, shared, tt, threadLocal);
 }
 
 //============================================================
-// Starts search with given depth (without waiting for the end
+// Starts search with given depth
 //============================================================
-void MultiSearcher::startSearch(Depth depth)
+void MultiSearcher::startSearch(const Position& pos, const SearchOptions& options)
 {
 	// If we are already in search, the new one won't be launched
 	if (inSearch)
 		throw std::runtime_error("Another search is already launched");
-	// Set the inSearch and start the main search thread
-	shared.stopSearch = false;
 	inSearch = true;
-	threads[0].handle = std::thread(&MultiSearcher::search, this, depth);
+	// Copy input data to internal storage (it's just safer
+	// not to assume they will remain valid during thread execution)
+	this->pos = pos;
+	this->options = options;
+	// Reset misc info and start the main search thread
+	shared.stopSearch = false;
+	shared.externalStop = false;
+	shared.timeout = false;
+	threads[0].handle = std::thread(&MultiSearcher::search, this);
 	if (!threads[0].handle.joinable())
 		throw std::runtime_error("Unable to create valid main search thread");
 }
@@ -52,30 +63,44 @@ void MultiSearcher::startSearch(Depth depth)
 //============================================================
 // Ends started search (throws if there was no one) and returns search information
 //============================================================
-Score MultiSearcher::endSearch(Move& bestMove, Depth& resDepth, int& nodes, int& hits)
+SearchResults MultiSearcher::endSearch(void)
 {
+	if (!inSearch)
+		throw std::runtime_error("There's no search in progress.");
 	// Set stop flag and wait for finishing search
-	shared.stopSearch = true;
-	threads[0].handle.join();
+	if (!shared.stopSearch)
+	{
+		shared.stopCause = StopCause::END_SEARCH_CALL;
+		shared.externalStop = true;
+		shared.stopSearch = true;
+	}
+	threads[0].handle.join(); // even if it terminated before, it's still needed
 	// Select best thread to retrieve info from
 	auto bestThreadIt = std::max_element(threads.begin(), threads.end(),
 		[](const ThreadInfo& ti1, const ThreadInfo& ti2) {
-		return ti1.resDepth < ti2.resDepth ||
-			(ti1.resDepth == ti2.resDepth && ti1.score < ti2.score);
+		return ti1.results.resDepth < ti2.results.resDepth ||
+			(ti1.results.resDepth == ti2.results.resDepth
+				&& ti1.results.score < ti2.results.score);
 	});
 	assert(bestThreadIt != threads.end());
-	bestMove = bestThreadIt->bestMove;
-	resDepth = bestThreadIt->resDepth;
-	nodes = shared.visitedNodes;
-	hits = shared.ttHits;
+	// Save stats if requested
+	SearchStats stats; // !! TODO How to return it? !!
+	if constexpr (SEARCH_NODES_COUNT_ENABLED)
+		stats.visitedNodes = shared.visitedNodes;
+	if constexpr (TT_HITS_COUNT_ENABLED)
+		stats.ttHits = shared.ttHits;
+	// Signalize the end of search
 	inSearch = false;
-	return bestThreadIt->score;
+	// Increment transposition table age (for future searches)
+	transpositionTable.incrementAge();
+	// Return the results
+	return bestThreadIt->results;
 }
 
 //============================================================
-// Internal AI logic (coordinates searching process, launches PVS-threads)
+// Internal search logic (coordinates searching process, launches PVS-threads)
 //============================================================
-void MultiSearcher::search(const Position& pos, Depth depth)
+void MultiSearcher::search(void)
 {
 	// Misc
 	if constexpr (TT_HITS_COUNT_ENABLED)
@@ -88,20 +113,50 @@ void MultiSearcher::search(const Position& pos, Depth depth)
 		shared.startTime = std::chrono::high_resolution_clock::now();
 		shared.timeCheckCounter = 0;
 	}
+	// Set thread count and update thread vector accordingly
+	setThreadCount(options.threadCount);
+	// Set appropriate size for array containing count of threads search(-ing/-ed) at given depth from root
+	shared.depthSearchedByCnt.resize(options.depth + 1, 0);
 	// Setup helper threads
-	for (int threadID = 1; threadID < shared.threadCount; ++threadID)
+	for (unsigned int threadID = 1; threadID < options.threadCount; ++threadID)
 	{
 		ThreadInfo& threadInfo = threads[threadID];
-		threadInfo.searcher.initialize(pos, &shared, &transpositionTable, &threadInfo);
-		threadInfo.handle = std::thread(&Searcher::idSearch, &threadInfo.searcher, depth);
+		threadInfo.ID = threadID;
+		threadInfo.searcher.initialize(pos, &options, &shared, &transpositionTable, &threadInfo);
+		threadInfo.handle = std::thread(&Searcher::idSearch, &threadInfo.searcher, options.depth);
 	}
 	// Setup main (this) thread
-	threads[0].searcher.initialize(pos, &shared, &transpositionTable, &threads[0]);
-	threads[0].searcher.idSearch(depth);
+	threads[0].ID = 0;
+	threads[0].searcher.initialize(pos, &options, &shared, &transpositionTable, &threads[0]);
+	threads[0].searcher.idSearch(options.depth);
 	// After finishing main thread, wait for others to finish
-	// shared.stopSearch = true;
-	for (int threadID = 1; threadID < shared.threadCount; ++threadID)
+	shared.stopSearch = true; // !
+	for (unsigned int threadID = 1; threadID < options.threadCount; ++threadID)
 		threads[threadID].handle.join();
+	// If the thread terminated not due to endSearch call, we should notify the user
+	if (!shared.externalStop)
+	{
+		if (!shared.timeout)
+			shared.stopCause = StopCause::DEPTH_REACHED;
+		auto bestIt = bestThread();
+		options.processer(SearchEvent(SearchEventType::FINISHED, bestIt->results));
+	}
+}
+
+//============================================================
+// Select (currently) best search thread
+//============================================================
+ThreadList::iterator MultiSearcher::bestThread(void)
+{
+	// !! TODO maybe there's a better way? !!
+	auto bestThreadIt = std::max_element(threads.begin(), threads.end(),
+		[](const ThreadInfo& ti1, const ThreadInfo& ti2) {
+		return ti1.results.resDepth < ti2.results.resDepth ||
+			(ti1.results.resDepth == ti2.results.resDepth
+				&& ti1.results.score < ti2.results.score);
+	});
+	assert(bestThreadIt != threads.end());
+	return bestThreadIt;
 }
 
 //============================================================
@@ -141,16 +196,16 @@ void Searcher::updateKillers(int searchPly, Move bestMove)
 	for (auto killer : killers[searchPly])
 		if (killer == bestMove)
 			return;
-	// If it's new, add it to killers
-	killers[searchPly].push_front(bestMove);
-	if (killers[searchPly].size() > MAX_KILLERS_CNT)
-		killers[searchPly].pop_back();
+	// If it's new, add it to killers (in front)
+	for (int i = 0; i < MAX_KILLERS_CNT - 1; ++i)
+		killers[searchPly][i + 1] = killers[searchPly][i];
+	killers[searchPly][0] = bestMove;
 }
 
 //============================================================
 // Scores each move from moveList
 //============================================================
-void Searcher::scoreMoves(MoveList& moveList)
+void Searcher::scoreMoves(MoveList& moveList) const
 {
 	for (int i = 0; i < moveList.count(); ++i)
 	{
@@ -165,7 +220,7 @@ void Searcher::scoreMoves(MoveList& moveList)
 		{
 			assert(searchPly == 0 || prevMoves[searchPly - 1] != MOVE_NONE);
 			if (searchPly > 0 && move == countermoves[prevMoves[searchPly - 1].from()]
-				[prevMoves[searchPly - 1].to()]) // searchPly is NOT 1-biased where it is called
+				[prevMoves[searchPly - 1].to()])
 				moveNode.score += MS_COUNTERMOVE_BONUS;
 			for (auto killerMove : killers[searchPly])
 				if (move == killerMove)
@@ -226,20 +281,22 @@ Score Searcher::SEECapture(Square from, Square to, Side by)
 //============================================================
 void Searcher::idSearch(Depth depth)
 {
-	assert(threadLocal && *this == threadLocal->searcher);
+	assert(options && transpositionTable && shared && threadLocal);
+	assert(this == &threadLocal->searcher);
 	// Setup search
 	Move bestMove = MOVE_NONE, move;
 	int bestScore(SCORE_ZERO); // int to avoid overflow
 	Score score;
 	PositionInfo prevState;
-	for (int i = 0; i <= depth; ++i)
-		killers[i].clear();
 	searchPly = 0;
-	ttAge = pos.gamePly;
-	threadLocal->resDepth = 0;
+	threadLocal->results.resDepth = 0;
 	// Iterative deepening
-	for (Depth searchDepth = 1; searchDepth <= depth; ++searchDepth)
+	for (Depth curDepth = 1; curDepth <= depth; ++curDepth)
 	{
+		// Skip this depth if not in main thread and it's being searched by some other thread
+		if (!isMainThread() && shared->depthSearchedByCnt[curDepth] > 0)
+			continue;
+		++shared->depthSearchedByCnt[curDepth];
 		// Best move and score of current iteration
 		int curBestScore(bestScore);
 		Move curBestMove(bestMove);
@@ -258,12 +315,12 @@ void Searcher::idSearch(Depth depth)
 				doMove(move, prevState);
 				// Principal variation search
 				if (pvSearch)
-					score = -pvs(searchDepth - 1, -beta, -curBestScore);
+					score = -pvs(curDepth - 1, -beta, -curBestScore);
 				else
 				{
-					score = -pvs(searchDepth - 1, -curBestScore - 1, -curBestScore);
+					score = -pvs(curDepth - 1, -curBestScore - 1, -curBestScore);
 					if (!shared->stopSearch && beta > score && score > curBestScore)
-						score = -pvs(searchDepth - 1, -beta, -score);
+						score = -pvs(curDepth - 1, -beta, -score);
 				}
 				// Undo move
 				undoMove(move, prevState);
@@ -280,7 +337,7 @@ void Searcher::idSearch(Depth depth)
 					if (curBestScore >= beta)
 					{
 						// Don't update history and killers while in aspiration window
-						// history[move.from()][move.to()] += searchDepth * searchDepth;
+						// history[move.from()][move.to()] += curDepth * curDepth;
 						break;
 					}
 				}
@@ -303,17 +360,20 @@ void Searcher::idSearch(Depth depth)
 		// iteration's best move and score as new best overall
 		bestMove = curBestMove;
 		bestScore = curBestScore;
-		threadLocal->resDepth = searchDepth;
+		// Update thread's storage
+		threadLocal->results.resDepth = curDepth;
+		threadLocal->results.bestMove = bestMove;
+		threadLocal->results.score = bestScore;
 		// Update history and killers
 		if (!pos.isCaptureMove(bestMove))
 		{
 			updateKillers(searchPly, bestMove);
-			history[bestMove.from()][bestMove.to()] += searchDepth * searchDepth;
+			history[bestMove.from()][bestMove.to()] += curDepth * curDepth;
 		}
+		// Send info to external event processer
+		if (isMainThread())
+			options->processer(SearchEvent(SearchEventType::INFO, threadLocal->results));
 	}
-	// Save rest of info to thread specific storage
-	threadLocal->bestMove = bestMove;
-	threadLocal->score = bestScore;
 }
 
 //============================================================
@@ -403,9 +463,11 @@ Score Searcher::pvs(Depth depth, Score alpha, Score beta)
 			shared->timeCheckCounter = 0;
 			auto endTime = std::chrono::high_resolution_clock::now();
 			if (std::chrono::duration_cast<std::chrono::milliseconds>(endTime
-				- shared->startTime).count() > shared->timeLimit)
+				- shared->startTime).count() > options->timeLimit)
 			{
 				shared->stopSearch = true;
+				shared->timeout = true;
+				shared->stopCause = StopCause::TIMEOUT;
 				return SCORE_ZERO;
 			}
 		}
@@ -498,7 +560,7 @@ Score Searcher::pvs(Depth depth, Score alpha, Score beta)
 	if (anyLegalMove)
 		transpositionTable->store(pos.info.keyZobrist, depth, alpha == oldAlpha ? BOUND_UPPER :
 			alpha < beta ? BOUND_EXACT : BOUND_LOWER, scoreToTT(bestScore),
-			bestMove, ttAge); // ! NOT searchPly !
+			bestMove); // ! NOT searchPly !
 	// Return alpha
 	return anyLegalMove ? alpha : pos.isInCheck() ? SCORE_LOSE + searchPly : SCORE_ZERO;
 }

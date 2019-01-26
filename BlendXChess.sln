@@ -12,6 +12,7 @@ EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		engine\engine.vcxitems*{1b6c37e7-0b0f-4c9f-b8ba-b228cf0a2535}*SharedItemsImports = 9
+		engine\engine.vcxitems*{473a717a-ee13-4ef5-8a23-616195be3f78}*SharedItemsImports = 4
 		engine\engine.vcxitems*{f7be2629-1482-4011-9c3a-3d01a426e258}*SharedItemsImports = 4
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

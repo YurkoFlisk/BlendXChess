@@ -28,7 +28,7 @@ Move MoveManager<LEGAL>::next(void)
 		if (pos.isPseudoLegal(ttMove)) // we check this because there could be hash collision
 		{
 #ifdef ENGINE_DEBUG
-			eng.generatePseudolegalMoves(moveList);
+			pos.generatePseudolegalMoves(moveList);
 			bool foundTT = false;
 			for (int i = 0; i < moveList.count(); ++i)
 				if (moveList[i].move == ttMove)
@@ -50,7 +50,7 @@ Move MoveManager<LEGAL>::next(void)
 #ifdef ENGINE_DEBUG
 		else
 		{
-			eng.generatePseudolegalMoves(moveList);
+			pos.generatePseudolegalMoves(moveList);
 			bool foundTT = false;
 			for (int i = 0; i < moveList.count(); ++i)
 				if (moveList[i].move == ttMove)

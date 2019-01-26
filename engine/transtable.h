@@ -7,6 +7,7 @@
 #ifndef _TRANSTABLE_H
 #define _TRANSTABLE_H
 #include "basic_types.h"
+#include <mutex>
 
 //============================================================
 // Entry of a transposition table, stores various information
@@ -61,13 +62,17 @@ class TranspositionTable
 {
 public:
 	// Stores the info to a corresponding entry if appropriate
-	inline void store(Key, Depth, Bound, Score, Move, int16_t);
+	inline void store(Key, Depth, Bound, Score, Move);
 	// Probe the given key and return nullptr if there's not such entry or a pointer to one if it's found
-	inline const TTEntry* probe(Key) const;
+	inline const TTEntry* probe(Key);
 	// Clear transposition table;
 	inline void clear(void);
+	// Increment age of TT (typically called before or after search)
+	inline void incrementAge(void);
 private:
 	TTBucket table[TT_BUCKET_COUNT];
+	std::mutex mut;
+	int16_t age;
 };
 
 //============================================================
@@ -79,13 +84,15 @@ inline void TTEntry::store(Key k, Depth d, Bound b, Score s, Move m, int16_t a)
 	key = k, depth = d, bound = b, score = s, move = m, age = a;
 }
 
-inline void TranspositionTable::store(Key key, Depth depth, Bound bound, Score score, Move move, int16_t age)
+inline void TranspositionTable::store(Key key, Depth depth, Bound bound, Score score, Move move)
 {
+	std::lock_guard lock(mut);
 	table[key & TT_INDEX_MASK].store(key, depth, bound, score, move, age);
 }
 
-inline const TTEntry* TranspositionTable::probe(Key key) const
+inline const TTEntry* TranspositionTable::probe(Key key)
 {
+	std::lock_guard lock(mut);
 	return table[key & TT_INDEX_MASK].probe(key);
 }
 
@@ -93,7 +100,13 @@ inline void TranspositionTable::clear(void)
 {
 	// TODO maybe sometimes this is too slow and reduntant (probably no)?
 	memset(table, 0, sizeof(table));
+	age = 0;
 	ttFreeEntries = TT_BUCKET_COUNT * TTBUCKET_ENTRIES;
+}
+
+inline void TranspositionTable::incrementAge(void)
+{
+	++age;
 }
 
 #endif
