@@ -197,9 +197,9 @@ void Game::startSearch(void)
 //============================================================
 // Stops the searcher and returns results
 //============================================================
-SearchResults Game::endSearch(void)
+SearchReturn Game::endSearch(void)
 {
-	return lastSearchResults = searcher.endSearch();
+	return lastSearchInfo = searcher.endSearch();
 }
 
 //============================================================

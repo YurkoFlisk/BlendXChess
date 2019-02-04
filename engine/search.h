@@ -28,10 +28,10 @@ constexpr int TIME_LIMIT_MIN = 100; // ms
 constexpr int TIME_LIMIT_MAX = 1000000; // ms
 constexpr Depth SEARCH_DEPTH_DEFAULT = 10;
 constexpr Depth SEARCH_DEPTH_MIN = 1;
-constexpr Depth SEARCH_DEPTH_MAX = 100;
+constexpr Depth SEARCH_DEPTH_MAX = 60;
 
 //============================================================
-// Struct for storing results of search returned by endSearch
+// Structs for storing results and stats of search returned by endSearch
 //============================================================
 
 struct SearchResults
@@ -46,6 +46,8 @@ struct SearchStats
 	int ttHits;
 	int visitedNodes;
 };
+
+typedef std::pair<SearchResults, SearchStats> SearchReturn;
 
 //============================================================
 // Struct for sending search info to external event processing
@@ -122,7 +124,7 @@ public:
 	// Starts search with given depth
 	void startSearch(const Position&, const SearchOptions& options = DEFAULT_SEARCH_OPTIONS);
 	// Ends started search (throws if there was no one) and returns search information
-	SearchResults endSearch(void);
+	SearchReturn endSearch(void);
 	// Internal search logic (coordinates searching process, launches Searcher threads)
 	void search(void);
 private:

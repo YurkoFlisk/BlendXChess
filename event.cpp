@@ -11,8 +11,8 @@
 //============================================================
 // Constructor
 //============================================================
-EventInfo::EventInfo(EventSource src, const std::string& input, const SearchEvent& searchEvent)
-	: source(src), input(input), searchEvent(searchEvent)
+Event::Event(EventSource src, const EventInfo& ei)
+	: source(src), eventInfo(ei)
 {}
 
 //============================================================
@@ -33,13 +33,13 @@ EngineProcesser EventLoop::getEngineProcesser(void)
 //============================================================
 // Wait for next event (or immediately return one if queued)
 //============================================================
-EventInfo EventLoop::next(void)
+Event EventLoop::next(void)
 {
 	using namespace std::chrono_literals;
 	while (events.empty())
 		std::this_thread::sleep_for(200ms); // TODO maybe std::condition_variable?
 	std::lock_guard lock(eventsMutex);
-	EventInfo&& ret = std::move(events.front());
+	Event&& ret = std::move(events.front());
 	events.pop();
 	return std::move(ret);
 }
@@ -63,5 +63,5 @@ void EventLoop::consoleReader(void)
 void EventLoop::engineProcesser(const SearchEvent& searchEvent)
 {
 	std::lock_guard lock(eventsMutex);
-	events.emplace(EventSource::ENGINE, "", searchEvent);
+	events.emplace(EventSource::ENGINE, searchEvent);
 }

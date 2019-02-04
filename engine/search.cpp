@@ -51,6 +51,10 @@ void MultiSearcher::startSearch(const Position& pos, const SearchOptions& option
 	// not to assume they will remain valid during thread execution)
 	this->pos = pos;
 	this->options = options;
+	// Safety check (TODO: maybe get rid of depth limiting (but then dynamic memory
+	// will be used in some places, with hopefully rarely (de-)allocating)?)
+	if (options.depth > SEARCH_DEPTH_MAX)
+		this->options.depth = SEARCH_DEPTH_MAX;
 	// Reset misc info and start the main search thread
 	shared.stopSearch = false;
 	shared.externalStop = false;
@@ -63,7 +67,7 @@ void MultiSearcher::startSearch(const Position& pos, const SearchOptions& option
 //============================================================
 // Ends started search (throws if there was no one) and returns search information
 //============================================================
-SearchResults MultiSearcher::endSearch(void)
+SearchReturn MultiSearcher::endSearch(void)
 {
 	if (!inSearch)
 		throw std::runtime_error("There's no search in progress.");
@@ -76,15 +80,9 @@ SearchResults MultiSearcher::endSearch(void)
 	}
 	threads[0].handle.join(); // even if it terminated before, it's still needed
 	// Select best thread to retrieve info from
-	auto bestThreadIt = std::max_element(threads.begin(), threads.end(),
-		[](const ThreadInfo& ti1, const ThreadInfo& ti2) {
-		return ti1.results.resDepth < ti2.results.resDepth ||
-			(ti1.results.resDepth == ti2.results.resDepth
-				&& ti1.results.score < ti2.results.score);
-	});
-	assert(bestThreadIt != threads.end());
+	auto bestThreadIt = bestThread();
 	// Save stats if requested
-	SearchStats stats; // !! TODO How to return it? !!
+	SearchStats stats;
 	if constexpr (SEARCH_NODES_COUNT_ENABLED)
 		stats.visitedNodes = shared.visitedNodes;
 	if constexpr (TT_HITS_COUNT_ENABLED)
@@ -94,7 +92,7 @@ SearchResults MultiSearcher::endSearch(void)
 	// Increment transposition table age (for future searches)
 	transpositionTable.incrementAge();
 	// Return the results
-	return bestThreadIt->results;
+	return { bestThreadIt->results, stats };
 }
 
 //============================================================

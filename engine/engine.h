@@ -66,7 +66,7 @@ public:
 	bool UndoMove(void);
 	// Searching interface functions
 	void startSearch(void);
-	SearchResults endSearch();
+	SearchReturn endSearch(void);
 	// Load game from the given stream in SAN notation
 	void loadGame(std::istream&, MoveFormat fmt = FMT_SAN);
 	// Write game to the given stream in SAN notation
@@ -105,7 +105,7 @@ protected:
 	// Search options (they are rarely changed during 1 game)
 	SearchOptions searchOptions;
 	// Result of last preformed search
-	SearchResults lastSearchResults;
+	SearchReturn lastSearchInfo;
 	// Game state
 	GameState gameState;
 	// Cause of draw game state (valid only if gameState == GS_DRAW)
@@ -114,7 +114,6 @@ protected:
 	std::vector<GHRecord> gameHistory;
 	// Position (stored in reduced FEN) repetition count, for handling threefold repetition draw rule
 	std::unordered_map<std::string, int> positionRepeats;
-
 };
 
 //============================================================

@@ -21,12 +21,13 @@ enum class EventSource
 // Struct for holding event info
 //============================================================
 
-struct EventInfo
+struct Event
 {
-	EventInfo(EventSource, const std::string&, const SearchEvent& = SearchEvent());
+	using EventInfo = std::variant<std::string, SearchEvent>;
+	Event(void) = default;
+	Event(EventSource, const EventInfo&);
 	EventSource source;
-	std::string input;
-	SearchEvent searchEvent;
+	EventInfo eventInfo;
 };
 
 //============================================================
@@ -41,7 +42,7 @@ public:
 	// Get function for engine response
 	EngineProcesser getEngineProcesser(void);
 	// Wait for next event (or immediately return one if queued)
-	EventInfo next(void);
+	Event next(void);
 private:
 	// Pool for reading and queuing console input
 	void consoleReader(void);
@@ -52,7 +53,7 @@ private:
 	// Mutex for events queue
 	std::mutex eventsMutex;
 	// The event queue
-	std::queue<EventInfo> events;
+	std::queue<Event> events;
 };
 
 #endif
