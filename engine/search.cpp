@@ -61,7 +61,10 @@ void MultiSearcher::startSearch(const Position& pos, const SearchOptions& option
 	shared.timeout = false;
 	threads[0].handle = std::thread(&MultiSearcher::search, this);
 	if (!threads[0].handle.joinable())
+	{
+		inSearch = false;
 		throw std::runtime_error("Unable to create valid main search thread");
+	}
 }
 
 //============================================================

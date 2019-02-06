@@ -33,7 +33,7 @@ struct PositionInfo
 {
 	PieceType justCaptured; // If last move was a capture, we store it's type here
 	uint8_t rule50; // Counter for 50-move draw rule
-	Square epSquare; // Square to which en passant is possible (if the last move was double pushed pawn)
+	Square epSquare; // Square to which endTime passant is possible (if the last move was double pushed pawn)
 	int8_t castlingRight; // Mask representing valid castlings
 	Key keyZobrist; // Zobrist key of the position
 };

@@ -16,6 +16,8 @@ Game game;
 EventLoop el;
 bool inGame = false;
 Side userSide;
+MoveFormat moveFmt = FMT_AN;
+TimePoint startTime, endTime;
 
 //============================================================
 // Struct for holding various info for search options
@@ -51,6 +53,14 @@ vector<string> tokenize(string input)
 	while (iss >> token)
 		tokens.push_back(token);
 	return tokens;
+}
+
+//============================================================
+// Show help info
+//============================================================
+void showHelp(void)
+{
+	
 }
 
 //============================================================
@@ -110,6 +120,80 @@ void setOption(const string& opt, const string& val)
 }
 
 //============================================================
+// Start search
+//============================================================
+void startSearch(void)
+{
+	cout << "Starting search on current position..." << endl;
+	try
+	{
+		startTime = chrono::high_resolution_clock::now();
+		game.startSearch();
+	}
+	catch (const std::runtime_error& err)
+	{
+		cout << "Error: " << err.what() << endl;
+	}
+}
+
+//============================================================
+// End search, perform best move and display results
+//============================================================
+void endSearch(void)
+{
+	try
+	{
+		auto[results, stats] = game.endSearch();
+		endTime = chrono::high_resolution_clock::now();
+		if (!game.DoMove(results.bestMove))
+		{
+			cout << "Search returned with illegal move" << endl;
+			return;
+		}
+		cout << "Search finished with move ";
+		cout << results.bestMove.toAN();
+		cout << ". " << stats.visitedNodes << " nodes searched in "
+			<< chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count()
+			<< " ms to depth " << results.resDepth << ". The score is " << results.score << ". "
+			<< ttFreeEntries << " free slots in TT. " << stats.ttHits << " hits made." << endl;
+	}
+	catch (const std::runtime_error& err)
+	{
+		cout << "Error: " << err.what() << endl;
+	}
+}
+
+//============================================================
+// Update game state and signalize in case of a finish
+//============================================================
+void updateGameState(void)
+{
+	if (game.getGameState() != GS_ACTIVE)
+	{
+		if (game.getGameState() == GS_DRAW)
+		{
+			const DrawCause drawCause = game.getDrawCause();
+			cout << "Draw! Cause: " << game.getDrawCause() << endl;
+			switch (drawCause)
+			{
+			case DC_RULE_50: cout << "Rule 50"; break;
+			case DC_MATERIAL: cout << "Insufficient material"; break;
+			case DC_THREEFOLD_REPETITION: cout << "Threefold repetition"; break;
+			default: cout << "Unknown"; break;
+			}
+		}
+		else if (game.getGameState() == GS_WHITE_WIN)
+			cout << "Checkmate! White win" << endl;
+		else if (game.getGameState() == GS_BLACK_WIN)
+			cout << "Checkmate! Black win" << endl;
+		std::ofstream gameLog("lastGame.txt");
+		game.writeGame(gameLog);
+		gameLog.close();
+		inGame = false;
+	}
+}
+
+//============================================================
 // Processing events from console and engine
 // Returns true if the event wasn't quit, false if it was
 //============================================================
@@ -123,14 +207,45 @@ bool processEvent(const Event& e)
 			return true;
 		if (inGame)
 		{
-			if (tokens[0] == "stop")
+			if (game.isInSearch())
+			{
+				if (tokens[0] == "stop")
+				{
+					endSearch();
+					updateGameState();
+				}
+				else
+					cout << "Error: Unrecognized command " << tokens[0] << ", please try again." << endl;
+			}
+			else if (tokens[0] == "abort")
+			{
+				game.reset(); // Maybe unnecessary (but at least this ends search)?
+				inGame = false;
+			}
+			else if (tokens[0] == "staticEvaluate")
 				;
-			else if (tokens[0] == "")
-				;
+			else if (tokens[0] == "move")
+			{
+				if (tokens.size() == 1)
+					cout << "Error: what move?" << endl;
+				else if (!game.DoMove(tokens[1], moveFmt))
+					cout << "Error: illegal move" << endl;
+				else
+				{
+					cout << "Move successfully performed!" << endl;
+					updateGameState();
+					if (inGame)
+						startSearch();
+				}
+			}
+			else
+				cout << "Error: Unrecognized command " << tokens[0] << ", please try again." << endl;
 		}
 		else
 		{
-			if (tokens[0] == "showOptions")
+			if (tokens[0] == "help")
+				showHelp();
+			else if (tokens[0] == "showOptions")
 				showOptions();
 			else if (tokens[0] == "set")
 			{
@@ -164,31 +279,31 @@ bool processEvent(const Event& e)
 					return true;
 				}
 				inGame = true;
+				game.reset();
+				if (userSide == BLACK)
+					startSearch();
 			}
 			else if (tokens[0] == "quit")
 				return false;
+			else
+				cout << "Error: Unrecognized command " << tokens[0] << ", please try again." << endl;
 		}
 	}
 	else if (e.source == EventSource::ENGINE)
 	{
 		SearchEvent se = get<SearchEvent>(e.eventInfo);
 		if (se.type == SearchEventType::FINISHED) // still need to call endSearch
-		{
-			auto [results, stats] = game.endSearch();
-			game.DoMove(results.bestMove);
-			cout << "Search finished with move ";
-			cout << results.bestMove.toAN();
-			cout << ". " << stats.visitedNodes << " nodes searched in "
-				<< chrono::duration_cast<chrono::milliseconds>(en - st).count()
-				<< " ms to depth " << results.resDepth << ". The score is " << results.score << ". "
-				<< ttFreeEntries << " free slots in TT. " << stats.ttHits << " hits made." << endl;
-		}
+			endSearch();
 		else if (se.type == SearchEventType::INFO)
 		{
 			cout << "Depth " << se.results.resDepth << ": " << se.results.bestMove.toAN()
 				<< ", the score is " << se.results.score << "." << endl;
 		}
+		else
+			cout << "Error: Unrecognized search event type " << (int)(se.type) << endl;
 	}
+	else
+		cout << "Error: Unrecognized event source" << (int)(e.source) << endl;
 	return true;
 }
 

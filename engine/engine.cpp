@@ -47,7 +47,7 @@ void Game::reset(void)
 {
 	// If we are in search, stop it
 	if (searcher.isInSearch())
-		lastSearchResults = searcher.endSearch();
+		lastSearchReturn = searcher.endSearch();
 	clear();
 	pos.reset(); // Position::clear will also be called from here but it's not crucial
 	gameState = GS_ACTIVE;
@@ -199,7 +199,7 @@ void Game::startSearch(void)
 //============================================================
 SearchReturn Game::endSearch(void)
 {
-	return lastSearchInfo = searcher.endSearch();
+	return lastSearchReturn = searcher.endSearch();
 }
 
 //============================================================

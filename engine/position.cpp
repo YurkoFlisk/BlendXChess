@@ -716,7 +716,7 @@ std::string Position::moveToSAN(Move move)
 	std::stringstream SAN;
 	if (pieceType == PAWN)
 	{
-		if (from.file() != to.file()) // works for en passant as well
+		if (from.file() != to.file()) // works for endTime passant as well
 			SAN << from.fileAN() << 'x';
 		SAN << to.toAN();
 		if (moveType == MT_PROMOTION)
@@ -1085,5 +1085,5 @@ template void Position::generateMoves<BLACK, MG_CAPTURES, true>(MoveList&);
 template void Position::generateMoves<BLACK, MG_CAPTURES, false>(MoveList&);
 template void Position::generateMoves<BLACK, MG_ALL, true>(MoveList&);
 template void Position::generateMoves<BLACK, MG_ALL, false>(MoveList&);
-template int Position::perft<false>(Depth) const;
-template int Position::perft<true>(Depth) const;
+template int Position::perft<false>(Depth);
+template int Position::perft<true>(Depth);

@@ -105,7 +105,7 @@ protected:
 	// Search options (they are rarely changed during 1 game)
 	SearchOptions searchOptions;
 	// Result of last preformed search
-	SearchReturn lastSearchInfo;
+	SearchReturn lastSearchReturn;
 	// Game state
 	GameState gameState;
 	// Cause of draw game state (valid only if gameState == GS_DRAW)
