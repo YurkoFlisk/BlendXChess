@@ -12,7 +12,7 @@ using namespace BlendXChess;
 // Constructor
 //============================================================
 template<bool LEGAL>
-MoveManager<LEGAL>::MoveManager(Searcher& pos, Move ttMove)
+MoveManager<LEGAL>::MoveManager(Searcher& searcher, Move ttMove)
 	: searcher(searcher), ttMove(ttMove), state(MM_TTMOVE)
 {}
 

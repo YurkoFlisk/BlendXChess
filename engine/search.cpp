@@ -48,6 +48,9 @@ void MultiSearcher::startSearch(const Position& pos, const SearchOptions& option
 	// If we are already in search, the new one won't be launched
 	if (inSearch)
 		throw std::runtime_error("Another search is already launched");
+	// Set thread count and update thread vector accordingly
+	setThreadCount(options.threadCount);
+	// Indicate beginning of search
 	inSearch = true;
 	// Copy input data to internal storage (it's just safer
 	// not to assume they will remain valid during thread execution)
@@ -57,10 +60,11 @@ void MultiSearcher::startSearch(const Position& pos, const SearchOptions& option
 	// will be used in some places, with hopefully rarely (de-)allocating)?)
 	if (options.depth > SEARCH_DEPTH_MAX)
 		this->options.depth = SEARCH_DEPTH_MAX;
-	// Reset misc info and start the main search thread
+	// Reset misc info
 	shared.stopSearch = false;
 	shared.externalStop = false;
 	shared.timeout = false;
+	// Start the main search thread
 	threads[0].handle = std::thread(&MultiSearcher::search, this);
 	if (!threads[0].handle.joinable())
 	{
@@ -116,8 +120,6 @@ void MultiSearcher::search(void)
 		shared.startTime = std::chrono::high_resolution_clock::now();
 		shared.timeCheckCounter = 0;
 	}
-	// Set thread count and update thread vector accordingly
-	setThreadCount(options.threadCount);
 	// Set appropriate size for array containing count of threads search(-ing/-ed) at given depth from root
 	shared.depthSearchedByCnt.resize(options.depth + 1);
 	// Setup helper threads
@@ -421,25 +423,20 @@ Score Searcher::quiescentSearch(Score alpha, Score beta)
 		else if (pos.board[move.to()] != PIECE_NULL && SEECapture(
 			move.from(), move.to(), pos.turn) < SCORE_ZERO)
 			prune = true;
-		// Do move
-		doMove(move, prevState);
-		// Legality check
-		if (pos.isAttacked(pos.pieceSq[opposite(pos.turn)][KING][0], pos.turn))
-		{
-			undoMove(move, prevState);
+		// Do move with legality check
+		if (!doMove(move, prevState))
 			continue;
-		}
 		anyLegalMove = true;
 		// Here we know that this move is legal and anyLegalMove is updated accordingly, so we can prune
 		if (prune)
 		{
-			pos.undoMove(move, prevState);
+			undoMove(move, prevState);
 			continue;
 		}
 		// Quiescent search
 		score = -quiescentSearch(-beta, -alpha);
 		// Undo move
-		undoMove(move, prevState);
+		pos.undoMove(move, prevState);
 		// Update alpha
 		if (score > alpha)
 		{
@@ -509,14 +506,9 @@ Score Searcher::pvs(Depth depth, Score alpha, Score beta)
 	bool anyLegalMove = false, pvSearch = true;
 	while ((move = moveManager.next()) != MOVE_NONE)
 	{
-		// Do move
-		doMove(move, prevState);
-		// Legality check
-		if (pos.isAttacked(pos.pieceSq[opposite(pos.turn)][KING][0], pos.turn))
-		{
-			pos.undoMove(move, prevState);
+		// Do move with legality check
+		if (!doMove(move, prevState))
 			continue;
-		}
 		anyLegalMove = true;
 		// Principal variation search
 		if (pvSearch)

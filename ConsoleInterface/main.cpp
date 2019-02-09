@@ -298,6 +298,7 @@ bool processEvent(const Event& e)
 			{
 				game.reset();
 				inGame = false;
+				cout << "Game aborted successfully" << endl;
 			}
 			else if (tokens[0] == "staticEvaluate")
 				cout << "Temporary unavailable..." << endl;
@@ -352,12 +353,12 @@ bool processEvent(const Event& e)
 				}
 				else if (tokens[1] == "w" || tokens[1] == "white")
 				{
-					cout << "Starting game with user as white...";
+					cout << "Starting game with user as white..." << endl;
 					userSide = WHITE;
 				}
 				else if (tokens[1] == "b" || tokens[1] == "black")
 				{
-					cout << "Starting game with user as black...";
+					cout << "Starting game with user as black..." << endl;
 					userSide = BLACK;
 				}
 				else

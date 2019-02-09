@@ -89,14 +89,18 @@ namespace BlendXChess
 
 	inline void TranspositionTable::store(Key key, Depth depth, Bound bound, Score score, Move move)
 	{
-		std::lock_guard lock(mut);
-		table[key & TT_INDEX_MASK].store(key, depth, bound, score, move, age);
+		{
+			std::lock_guard lock(mut);
+			table[key & TT_INDEX_MASK].store(key, depth, bound, score, move, age);
+		}
 	}
 
 	inline const TTEntry* TranspositionTable::probe(Key key)
 	{
-		std::lock_guard lock(mut);
-		return table[key & TT_INDEX_MASK].probe(key);
+		{
+			std::lock_guard lock(mut);
+			return table[key & TT_INDEX_MASK].probe(key);
+		}
 	}
 
 	inline void TranspositionTable::clear(void)
