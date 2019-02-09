@@ -4,14 +4,16 @@
 //============================================================
 
 #include "move_manager.h"
-#include "engine.h"
+#include "search.h"
+
+using namespace BlendXChess;
 
 //============================================================
 // Constructor
 //============================================================
 template<bool LEGAL>
-MoveManager<LEGAL>::MoveManager(Position& pos, Move ttMove)
-	: pos(pos), ttMove(ttMove), state(MM_TTMOVE)
+MoveManager<LEGAL>::MoveManager(Searcher& pos, Move ttMove)
+	: searcher(searcher), ttMove(ttMove), state(MM_TTMOVE)
 {}
 
 //============================================================
@@ -21,6 +23,7 @@ template<bool LEGAL>
 Move MoveManager<LEGAL>::next(void)
 {
 	Move nextMove;
+	Position& pos = searcher.pos;
 	switch (state)
 	{
 	case MM_TTMOVE:
@@ -68,7 +71,7 @@ Move MoveManager<LEGAL>::next(void)
 			pos.generateLegalMoves(moveList);
 		else
 			pos.generatePseudolegalMoves(moveList);
-		pos.scoreMoves(moveList);
+		searcher.scoreMoves(moveList);
 		state = MM_GENERATED;
 		// [[fallthrough]]
 	case MM_GENERATED:

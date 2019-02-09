@@ -8,30 +8,35 @@
 #define _MOVE_MANAGER
 #include "movelist.h"
 
-class Position;
-
-enum MMState
+namespace BlendXChess
 {
-	MM_TTMOVE, MM_GENMOVES, MM_GENERATED
-};
 
-//============================================================
-// Class for ordered selection of pseudolegal moves during search
-//============================================================
+	class Searcher;
 
-template<bool LEGAL = false>
-class MoveManager
-{
-public:
-	// Constructor
-	MoveManager(Position& pos, Move ttMove);
-	// Returns next picked move or MOVE_NONE if none left
-	Move next(void);
-private:
-	Position& pos;
-	MMState state;
-	Move ttMove;
-	MoveList moveList;
-};
+	enum MMState
+	{
+		MM_TTMOVE, MM_GENMOVES, MM_GENERATED
+	};
+
+	//============================================================
+	// Class for ordered selection of (pseudo-)legal moves during search
+	//============================================================
+
+	template<bool LEGAL = false>
+	class MoveManager
+	{
+	public:
+		// Constructor
+		MoveManager(Searcher& searcher, Move ttMove);
+		// Returns next picked move or MOVE_NONE if none left
+		Move next(void);
+	private:
+		Searcher& searcher;
+		MMState state;
+		Move ttMove;
+		MoveList moveList;
+	};
+
+}
 
 #endif

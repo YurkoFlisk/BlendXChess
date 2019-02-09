@@ -9,11 +9,13 @@
 #include <sstream>
 #include <algorithm>
 
+using namespace BlendXChess;
+
 //============================================================
 // Constructor
 //============================================================
 Game::Game(void)
-	: gameState(GS_UNDEFINED)
+	: gameState(GameState::UNDEFINED), searchOptions(DEFAULT_SEARCH_OPTIONS)
 {
 	reset();
 }
@@ -34,7 +36,7 @@ void Game::initialize(void)
 void Game::clear(void)
 {
 	pos.clear();
-	gameState = GS_UNDEFINED;
+	gameState = GameState::UNDEFINED;
 	// Game and position history
 	gameHistory.clear();
 	positionRepeats.clear();
@@ -50,7 +52,7 @@ void Game::reset(void)
 		lastSearchReturn = searcher.endSearch();
 	clear();
 	pos.reset(); // Position::clear will also be called from here but it's not crucial
-	gameState = GS_ACTIVE;
+	gameState = GameState::ACTIVE;
 }
 
 //============================================================
@@ -94,15 +96,15 @@ void Game::updateGameState(void)
 	pos.generateLegalMoves(moveList);
 	if (moveList.empty())
 		gameState = pos.isInCheck() ? (pos.turn == WHITE ?
-			GS_BLACK_WIN : GS_WHITE_WIN) : GS_DRAW;
+			GameState::BLACK_WIN : GameState::WHITE_WIN) : GameState::DRAW;
 	else if (pos.info.rule50 >= 100)
-		gameState = GS_DRAW, drawCause = DC_RULE_50;
+		gameState = GameState::DRAW, drawCause = DrawCause::RULE_50;
 	else if (drawByMaterial())
-		gameState = GS_DRAW, drawCause = DC_MATERIAL;
+		gameState = GameState::DRAW, drawCause = DrawCause::MATERIAL;
 	else if (threefoldRepetitionDraw())
-		gameState = GS_DRAW, drawCause = DC_THREEFOLD_REPETITION;
+		gameState = GameState::DRAW, drawCause = DrawCause::THREEFOLD_REPETITION;
 	else
-		gameState = GS_ACTIVE;
+		gameState = GameState::ACTIVE;
 }
 
 //============================================================
@@ -239,7 +241,7 @@ void Game::loadGame(std::istream& istr, MoveFormat fmt)
 		if (!istr || !DoMove(moveSAN, fmt))
 			throw std::runtime_error((pos.turn == WHITE ? "White " : "Black ")
 				+ std::string("move at position ") + std::to_string(expectedMN) + " is illegal");
-		if (gameState != GS_ACTIVE)
+		if (gameState != GameState::ACTIVE)
 			break;
 	}
 }

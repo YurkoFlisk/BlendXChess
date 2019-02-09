@@ -8,22 +8,27 @@
 #define _EVALUATE_H
 #include "basic_types.h"
 
-//============================================================
-// Global variables
-//============================================================
+namespace BlendXChess
+{
 
-// Piece weights
-extern Score ptWeight[PIECETYPE_CNT];
-// Piece-square table of bonuses for each piece(white) on corresponding square
-extern Score psqBonus[PIECETYPE_CNT][SQUARE_CNT];
-// Piece-square table for 2 sides with weights of corresponding pieces added
-extern Score psqTable[COLOR_CNT][PIECETYPE_CNT][SQUARE_CNT];
+	//============================================================
+	// Global variables
+	//============================================================
 
-//============================================================
-// Functions
-//============================================================
+	// Piece weights
+	extern Score ptWeight[PIECETYPE_CNT];
+	// Piece-square table of bonuses for each piece(white) on corresponding square
+	extern Score psqBonus[PIECETYPE_CNT][SQUARE_CNT];
+	// Piece-square table for 2 sides with weights of corresponding pieces added
+	extern Score psqTable[COLOR_CNT][PIECETYPE_CNT][SQUARE_CNT];
 
-// Initialization of piece-square table
-void initPSQ(void);
+	//============================================================
+	// Functions
+	//============================================================
+
+	// Initialization of piece-square table
+	void initPSQ(void);
+
+};
 
 #endif

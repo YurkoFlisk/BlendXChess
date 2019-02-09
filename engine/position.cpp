@@ -8,6 +8,16 @@
 #include <string>
 #include <sstream>
 
+using namespace BlendXChess;
+
+//============================================================
+// Constructor
+//============================================================
+Position::Position(void)
+{
+	reset();
+}
+
 //============================================================
 // Clear game state
 //============================================================
@@ -104,7 +114,7 @@ int Position::perft(Depth depth)
 				undoMove(move, prevState);
 				continue;
 			}
-		nodes += thisObj->perft<MG_LEGAL>(depth - 1);
+		nodes += perft<MG_LEGAL>(depth - 1);
 		undoMove(move, prevState);
 	}
 	return nodes;
@@ -816,7 +826,8 @@ bool Position::DoMove(Move move, PositionInfo* prevInfo)
 	MoveList legalMoves;
 	generateLegalMovesEx(legalMoves);
 	// Check whether given move is among legal ones. If it's not, we can't perform it.
-	if (std::find(legalMoves.begin(), legalMoves.end(), move) == legalMoves.end())
+	if (std::find_if(legalMoves.begin(), legalMoves.end(), [move](const MLNode& elem) {
+		return elem.move == move;}) == legalMoves.end())
 		return false;
 	// Save previous state info in case it's requested
 	if (prevInfo)
@@ -868,7 +879,8 @@ bool Position::UndoMove(Move move, const PositionInfo& prevInfo)
 	{
 		undoMove(move, prevInfo);
 		generateLegalMovesEx(legalMoves);
-		if (std::find(legalMoves.begin(), legalMoves.end(), move) == legalMoves.end())
+		if (std::find_if(legalMoves.begin(), legalMoves.end(), [move](const MLNode& elem) {
+			return elem.move == move; }) == legalMoves.end())
 			throw std::exception(); // Just to avoid duplicating code of catch block
 	}
 	// There may have been an exception due to uncheked

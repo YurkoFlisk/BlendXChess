@@ -7,10 +7,11 @@
 #include <fstream>
 #include <string>
 #include <queue>
-#include "engine/engine.h"
+#include "../engine/engine.h"
 #include "event.h"
 
 using namespace std;
+using namespace BlendXChess;
 
 Game game;
 EventLoop el;
@@ -25,21 +26,26 @@ TimePoint startTime, endTime;
 
 struct Option
 {
-	Option(int minValue, int maxValue, int defaultValue)
+	Option(void) = default;
+	Option(int minValue, int maxValue, int defaultValue, std::string desc)
 		: minValue(minValue), maxValue(maxValue),
-		defaultValue(defaultValue), value(defaultValue)
+		defaultValue(defaultValue), value(defaultValue), description(std::move(desc))
 	{}
 	int minValue;
 	int maxValue;
 	int defaultValue;
 	int value;
+	std::string description;
 };
 
 // Map of available options
 std::unordered_map<string, Option> options = {
-	{"depth", Option(1, 20, 10)},
-	{"threadCount", Option(1, 16, 4)},
-	{"timeLimit", Option(1, 100000, 5000)}
+	{"depth", Option(1, 20, 10,
+	"Orientive depth of search until quiescence search is applied")},
+	{"threadCount", Option(1, Game::getMaxThreadCount(), Game::getMaxThreadCount(),
+	"Count of threads for search")},
+	{"timeLimit", Option(1, 100000, 5000,
+	"Time limit of search")}
 };
 
 //============================================================
@@ -56,11 +62,30 @@ vector<string> tokenize(string input)
 }
 
 //============================================================
+// Show greeting at startup
+//============================================================
+void showGreeting(void)
+{
+#ifndef ENGINE_DEBUG
+	for (int i = 1; i <= 5; ++i)
+	{
+		auto st = chrono::high_resolution_clock::now();
+		cout << game.perft(i); // perft<true>
+		auto en = chrono::high_resolution_clock::now();
+		cout << " Perft(" << i << ") on initial position is " << chrono::duration_cast<
+			chrono::milliseconds>(en - st).count() << "ms\n";
+	}
+#endif
+	cout << "Welcome to the native console interface of BlendX chess engine!" << endl;
+	cout << "Type 'help' to see supported commands and options" << endl;
+}
+
+//============================================================
 // Show help info
 //============================================================
 void showHelp(void)
 {
-	
+	cout << "Missing now..." << endl;
 }
 
 //============================================================
@@ -71,6 +96,18 @@ void showOptions(void)
 	cout << "Depth: " << options["depth"].value << endl;
 	cout << "Thread count: " << options["threadCount"].value << endl;
 	cout << "Time limit: " << options["timeLimit"].value << "ms" << endl;
+}
+
+//============================================================
+// Apply search options stored in 'options' to a game object 
+//============================================================
+void applySearchOptions(void)
+{
+	SearchOptions searchOptions;
+	searchOptions.depth = options["depth"].value;
+	searchOptions.threadCount = options["threadCount"].value;
+	searchOptions.timeLimit = options["timeLimit"].value;
+	game.setSearchOptions(searchOptions);
 }
 
 //============================================================
@@ -89,12 +126,12 @@ void setOption(const string& opt, const string& val)
 	{
 		value = std::stoi(val);
 	}
-	catch (const invalid_argument& ex)
+	catch (const invalid_argument&)
 	{
 		cout << "Error: value for " << opt << " is not an integer";
 		return;
 	}
-	catch (const out_of_range& ex)
+	catch (const out_of_range&)
 	{
 		cout << "Error: value for " << opt << " is out of integer range";
 		return;
@@ -127,6 +164,7 @@ void startSearch(void)
 	cout << "Starting search on current position..." << endl;
 	try
 	{
+		applySearchOptions();
 		startTime = chrono::high_resolution_clock::now();
 		game.startSearch();
 	}
@@ -168,29 +206,62 @@ void endSearch(void)
 //============================================================
 void updateGameState(void)
 {
-	if (game.getGameState() != GS_ACTIVE)
+	if (game.getGameState() != GameState::ACTIVE)
 	{
-		if (game.getGameState() == GS_DRAW)
+		if (game.getGameState() == GameState::DRAW)
 		{
 			const DrawCause drawCause = game.getDrawCause();
-			cout << "Draw! Cause: " << game.getDrawCause() << endl;
+			cout << "Draw! Cause: " << (int)game.getDrawCause() << endl;
 			switch (drawCause)
 			{
-			case DC_RULE_50: cout << "Rule 50"; break;
-			case DC_MATERIAL: cout << "Insufficient material"; break;
-			case DC_THREEFOLD_REPETITION: cout << "Threefold repetition"; break;
+			case DrawCause::RULE_50: cout << "Rule 50"; break;
+			case DrawCause::MATERIAL: cout << "Insufficient material"; break;
+			case DrawCause::THREEFOLD_REPETITION: cout << "Threefold repetition"; break;
 			default: cout << "Unknown"; break;
 			}
 		}
-		else if (game.getGameState() == GS_WHITE_WIN)
+		else if (game.getGameState() == GameState::WHITE_WIN)
 			cout << "Checkmate! White win" << endl;
-		else if (game.getGameState() == GS_BLACK_WIN)
+		else if (game.getGameState() == GameState::BLACK_WIN)
 			cout << "Checkmate! Black win" << endl;
 		std::ofstream gameLog("lastGame.txt");
 		game.writeGame(gameLog);
 		gameLog.close();
 		inGame = false;
 	}
+}
+
+//============================================================
+// Load position from given filepath (resets if error)
+//============================================================
+void loadPosition(const std::string& filepath)
+{
+	try
+	{
+		game.loadFEN(filepath, true);
+	}
+	catch (const runtime_error& err)
+	{
+		game.reset();
+		cout << "Error: " << err.what() << endl;
+	}
+}
+
+//============================================================
+// Load game from given filepath (resets if error)
+//============================================================
+void loadGame(const std::string& filepath)
+{
+	std::string strMove;
+	ifstream in(filepath);
+	while (getline(in, strMove))
+		if (!game.DoMove(strMove, moveFmt))
+		{
+			cout << "Error: Wrong move " << strMove << " in input file" << endl;
+			game.reset();
+			break;
+		}
+	in.close();
 }
 
 //============================================================
@@ -205,7 +276,13 @@ bool processEvent(const Event& e)
 		vector<string> tokens = tokenize(input);
 		if (tokens.empty())
 			return true;
-		if (inGame)
+		if (tokens[0] == "quit")
+			return false;
+		else if (tokens[0] == "help")
+			showHelp();
+		else if (tokens[0] == "showOptions")
+			showOptions();
+		else if (inGame)
 		{
 			if (game.isInSearch())
 			{
@@ -219,11 +296,11 @@ bool processEvent(const Event& e)
 			}
 			else if (tokens[0] == "abort")
 			{
-				game.reset(); // Maybe unnecessary (but at least this ends search)?
+				game.reset();
 				inGame = false;
 			}
 			else if (tokens[0] == "staticEvaluate")
-				;
+				cout << "Temporary unavailable..." << endl;
 			else if (tokens[0] == "move")
 			{
 				if (tokens.size() == 1)
@@ -243,11 +320,7 @@ bool processEvent(const Event& e)
 		}
 		else
 		{
-			if (tokens[0] == "help")
-				showHelp();
-			else if (tokens[0] == "showOptions")
-				showOptions();
-			else if (tokens[0] == "set")
+			if (tokens[0] == "set")
 			{
 				if (tokens.size() == 1)
 					cout << "Error: set what?" << endl;
@@ -255,6 +328,20 @@ bool processEvent(const Event& e)
 					cout << "Error: set " << tokens[1] << " to what value?" << endl;
 				else
 					setOption(tokens[1], tokens[2]);
+			}
+			else if (tokens[0] == "position")
+			{
+				if (tokens.size() == 1)
+					cout << "Error: missing position filepath" << endl;
+				else
+					loadPosition(tokens[1]);
+			}
+			else if (tokens[0] == "game")
+			{
+				if (tokens.size() == 1)
+					cout << "Error: missing game filepath" << endl;
+				else
+					loadGame(tokens[1]);
 			}
 			else if (tokens[0] == "start")
 			{
@@ -279,12 +366,9 @@ bool processEvent(const Event& e)
 					return true;
 				}
 				inGame = true;
-				game.reset();
 				if (userSide == BLACK)
 					startSearch();
 			}
-			else if (tokens[0] == "quit")
-				return false;
 			else
 				cout << "Error: Unrecognized command " << tokens[0] << ", please try again." << endl;
 		}
@@ -295,10 +379,8 @@ bool processEvent(const Event& e)
 		if (se.type == SearchEventType::FINISHED) // still need to call endSearch
 			endSearch();
 		else if (se.type == SearchEventType::INFO)
-		{
 			cout << "Depth " << se.results.resDepth << ": " << se.results.bestMove.toAN()
 				<< ", the score is " << se.results.score << "." << endl;
-		}
 		else
 			cout << "Error: Unrecognized search event type " << (int)(se.type) << endl;
 	}
@@ -310,155 +392,15 @@ bool processEvent(const Event& e)
 //============================================================
 // Main function
 //============================================================
-int main(/*int argc, char **argv*/)
+int main(void)
 {
 	Game::initialize();
+	game.reset(); // Because during construction engine was not initialized
 	game.setSearchProcesser(el.getEngineProcesser());
-	searchOptions = game.getSearchOptions();
+	showGreeting();
 	Event e;
-	char userWhite, startMode;
-	Side userTurn;
-	Depth resDepth, depth;
-	int nodes, timeLimit, inDepth, ttHits, perftDepth;
-	Move cpuMove;
-	SearchOptions searchOptions;
-	string strMove, path, perft;
-	game.reset();
-#ifndef ENGINE_DEBUG
-	for (int i = 1; i <= 5; ++i)
-	{
-		auto st = chrono::high_resolution_clock::now();
-		cout << game.perft(i); // perft<true>
-		auto en = chrono::high_resolution_clock::now();
-		cout << " Perft("<< i << ") on initial position is " << chrono::duration_cast<
-			chrono::milliseconds>(en - st).count() << "ms\n";
-	}
-#endif
 	do
 		e = el.next();
-	while (!processEvent(e));
-		cout << "Do you want to quit ('Q'/'q'), load game ('G'/'g') or "
-			"position ('P'/'p') or start from initial position (everything else)?: ";
-		cin >> startMode;
-		startMode = tolower(startMode);
-		if (startMode == 'q')
-			break;
-		else if (tolower(startMode) == 'p')
-		{
-			cout << "Enter position filepath: ";
-			cin.ignore(numeric_limits<streamsize>::max(), '\n');
-			getline(cin, path);
-			ifstream in(path);
-			try
-			{
-				game.loadFEN(in, true);
-			}
-			catch (const runtime_error& err)
-			{
-				cerr << err.what() << endl;
-				return 0;
-			}
-			in.close();
-			cout << "Perft (ignoring timelimit)? (number for depth, other for no): ";
-			getline(cin, perft);
-			bool doPerft = true;
-			try
-			{
-				perftDepth = std::stoi(perft);
-			}
-			catch (const invalid_argument&)
-			{
-				doPerft = false;
-			}
-			if (doPerft)
-			{
-				for (int i = 1; i <= perftDepth; ++i)
-				{
-					auto st = chrono::high_resolution_clock::now();
-					cout << game.perft<true>(i);
-					auto en = chrono::high_resolution_clock::now();
-					cout << " Perft(" << i << ") on given is " << chrono::duration_cast<
-						chrono::milliseconds>(en - st).count() << "ms\n";
-				}
-				return 0;
-			}
-		}
-		else if (tolower(startMode) == 'g')
-		{
-			cout << "Enter game filepath: ";
-			cin.ignore(numeric_limits<streamsize>::max(), '\n');
-			getline(cin, path);
-			ifstream in(path);
-			while (getline(in, strMove))
-				if (!game.DoMove(strMove, FMT_AN))
-				{
-					cout << "Wrong move " << strMove << " in input.txt" << endl;
-					return 0;
-				}
-			in.close();
-		}
-		searchOptions.threadCount = game.getMaxThreadCount();
-		cout << "Set timelimit please (in ms): ";
-		cin >> searchOptions.timeLimit;
-		cout << "Set search depth please: ";
-		cin >> searchOptions.depth;
-		game.setSearchOptions(searchOptions);
-		cout << "User is white? (Y/y - yes, otherwise - no): ";
-		cin >> userWhite;
-		if (tolower(userWhite) == 'y')
-			userTurn = WHITE;
-		else
-			userTurn = BLACK;
-		while (true)
-		{
-			if (game.getPosition().getTurn() == userTurn)
-			{
-				do
-				{
-					cout << "Enter your move please (Re - restart game): ";
-					cin >> strMove;
-				} while (!(strMove == "Re" || game.DoMove(strMove, FMT_AN)));
-				if (strMove == "Re")
-				{
-					cout << "Restarting..." << endl;
-					game.reset();
-				}
-			}
-			else
-			{
-				auto st = chrono::high_resolution_clock::now();
-				const Score score = game.AIMove(cpuMove, depth, resDepth, nodes, ttHits);
-				auto en = chrono::high_resolution_clock::now();
-				game.DoMove(cpuMove);
-				cout << cpuMove.toAN();
-				cout << ' ' << nodes << " nodes searched in "
-					<< chrono::duration_cast<chrono::milliseconds>(en - st).count()
-					<< " ms to depth " << (int)resDepth << ". The score is " << score << ". "
-					<< ttFreeEntries << " free slots in TT. " << ttHits << " hits made." << endl;
-			}
-			if (game.getGameState() != GS_ACTIVE)
-			{
-				if (game.getGameState() == GS_DRAW)
-				{
-					const DrawCause drawCause = game.getDrawCause();
-					cout << "Draw! Cause: " << game.getDrawCause() << endl;
-					switch (drawCause)
-					{
-					case DC_RULE_50: cout << "Rule 50"; break;
-					case DC_MATERIAL: cout << "Insufficient material"; break;
-					case DC_THREEFOLD_REPETITION: cout << "Threefold repetition"; break;
-					default: cout << "Unknown"; break;
-					}
-				}
-				else if (game.getGameState() == GS_WHITE_WIN)
-					cout << "Checkmate! White win" << endl;
-				else if (game.getGameState() == GS_BLACK_WIN)
-					cout << "Checkmate! Black win" << endl;
-				std::ofstream gameLog("lastGame.txt");
-				game.writeGame(gameLog);
-				gameLog.close();
-				break;
-			}
-		}
+	while (processEvent(e));
 	return 0;
 }

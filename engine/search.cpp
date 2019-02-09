@@ -8,11 +8,13 @@
 #include "search.h"
 #include "move_manager.h"
 
+using namespace BlendXChess;
+
 //============================================================
 // Constructor
 //============================================================
 MultiSearcher::MultiSearcher(void)
-	: inSearch(false), maxThreadCount(std::thread::hardware_concurrency())
+	: inSearch(false)
 {}
 
 //============================================================
@@ -117,7 +119,7 @@ void MultiSearcher::search(void)
 	// Set thread count and update thread vector accordingly
 	setThreadCount(options.threadCount);
 	// Set appropriate size for array containing count of threads search(-ing/-ed) at given depth from root
-	shared.depthSearchedByCnt.resize(options.depth + 1, 0);
+	shared.depthSearchedByCnt.resize(options.depth + 1);
 	// Setup helper threads
 	for (unsigned int threadID = 1; threadID < options.threadCount; ++threadID)
 	{
@@ -140,7 +142,7 @@ void MultiSearcher::search(void)
 		if (!shared.timeout)
 			shared.stopCause = StopCause::DEPTH_REACHED;
 		auto bestIt = bestThread();
-		options.processer(SearchEvent(SearchEventType::FINISHED, bestIt->results));
+		shared.processer(SearchEvent(SearchEventType::FINISHED, bestIt->results));
 	}
 }
 
@@ -306,7 +308,7 @@ void Searcher::idSearch(Depth depth)
 		while (true)
 		{
 			// Initialize move picking manager
-			MoveManager<true> moveManager(pos, curBestMove);
+			MoveManager<true> moveManager(*this, curBestMove);
 			curBestScore = alpha;
 			// Test every move and choose the best one
 			bool pvSearch = true;
@@ -373,7 +375,7 @@ void Searcher::idSearch(Depth depth)
 		}
 		// Send info to external event processer
 		if (isMainThread())
-			options->processer(SearchEvent(SearchEventType::INFO, threadLocal->results));
+			shared->processer(SearchEvent(SearchEventType::INFO, threadLocal->results));
 	}
 }
 
@@ -502,7 +504,7 @@ Score Searcher::pvs(Depth depth, Score alpha, Score beta)
 			++shared->ttHits;
 	}
 	PositionInfo prevState;
-	MoveManager moveManager(pos, ttMove);
+	MoveManager moveManager(*this, ttMove);
 	Score bestScore = SCORE_LOSE, score;
 	bool anyLegalMove = false, pvSearch = true;
 	while ((move = moveManager.next()) != MOVE_NONE)

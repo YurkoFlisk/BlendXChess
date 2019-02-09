@@ -8,6 +8,8 @@
 #include "event.h"
 #include "engine.h"
 
+using namespace BlendXChess;
+
 //============================================================
 // Constructor
 //============================================================
@@ -39,9 +41,9 @@ Event EventLoop::next(void)
 	while (events.empty())
 		std::this_thread::sleep_for(200ms); // TODO maybe std::condition_variable?
 	std::lock_guard lock(eventsMutex);
-	Event&& ret = std::move(events.front());
+	Event ret = std::move(events.front());
 	events.pop();
-	return std::move(ret);
+	return ret;
 }
 
 //============================================================

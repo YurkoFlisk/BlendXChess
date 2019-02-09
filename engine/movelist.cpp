@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cassert>
 
+using namespace BlendXChess;
+
 //============================================================
 // Constructor
 //============================================================

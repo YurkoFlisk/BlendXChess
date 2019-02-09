@@ -23,7 +23,7 @@ enum class EventSource
 
 struct Event
 {
-	using EventInfo = std::variant<std::string, SearchEvent>;
+	using EventInfo = std::variant<std::string, BlendXChess::SearchEvent>;
 	Event(void) = default;
 	Event(EventSource, const EventInfo&);
 	EventSource source;
@@ -40,14 +40,14 @@ public:
 	// Constructor
 	EventLoop(void);
 	// Get function for engine response
-	EngineProcesser getEngineProcesser(void);
+	BlendXChess::EngineProcesser getEngineProcesser(void);
 	// Wait for next event (or immediately return one if queued)
 	Event next(void);
 private:
 	// Pool for reading and queuing console input
 	void consoleReader(void);
 	// Engine event processer 
-	void engineProcesser(const SearchEvent&);
+	void engineProcesser(const BlendXChess::SearchEvent&);
 	// Thread for acquiring console input
 	std::thread consoleInputThread;
 	// Mutex for events queue

@@ -11,6 +11,7 @@
 #include "../engine/engine.h"
 
 using namespace std;
+using namespace BlendXChess;
 
 //============================================================
 // General engine info
