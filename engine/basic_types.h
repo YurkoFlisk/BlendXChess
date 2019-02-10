@@ -135,6 +135,31 @@ namespace BlendXChess
 	// Inline functions
 	//============================================================
 
+	constexpr inline CastlingRight operator~(CastlingRight cr) noexcept
+	{
+		return CastlingRight(~(int8_t)(cr));
+	}
+
+	constexpr inline CastlingRight operator&(CastlingRight& cr1, CastlingRight cr2) noexcept
+	{
+		return CastlingRight((int8_t)(cr1) & (int8_t)(cr2));
+	}
+
+	constexpr inline CastlingRight& operator&=(CastlingRight& cr1, CastlingRight cr2) noexcept
+	{
+		return cr1 = cr1 & cr2;
+	}
+
+	constexpr inline CastlingRight operator|(CastlingRight& cr1, CastlingRight cr2) noexcept
+	{
+		return CastlingRight((int8_t)(cr1) | (int8_t)(cr2));
+	}
+
+	constexpr inline CastlingRight& operator|=(CastlingRight& cr1, CastlingRight cr2) noexcept
+	{
+		return cr1 = cr1 | cr2;
+	}
+
 	constexpr inline Side opposite(Side c) noexcept
 	{
 		return c == WHITE ? BLACK : WHITE;
@@ -154,6 +179,16 @@ namespace BlendXChess
 	constexpr inline bool validFile(int8_t column) noexcept
 	{
 		return 0 <= column && column < FILE_CNT;
+	}
+
+	constexpr inline bool validPieceType(PieceType pt) noexcept
+	{
+		return 0 <= pt || pt <= KING;
+	}
+
+	constexpr inline bool validPiece(Piece p) noexcept
+	{
+		return PIECE_NULL <= p && p <= W_KING || B_PAWN <= p && p <= B_KING;
 	}
 
 	constexpr inline bool validRankAN(char rankAN) noexcept

@@ -37,9 +37,12 @@ namespace BlendXChess
 	constexpr bool TT_COUNT_FREE_ENTRIES = false;
 #endif
 	constexpr int TTBUCKET_ENTRIES = 3;
-	constexpr int TT_INDEX_BITS = 20;
+	constexpr int TT_INDEX_BITS = 21;
+	constexpr int TT_MUT_BITS = 10;
 	constexpr int TT_BUCKET_COUNT = 1 << TT_INDEX_BITS;
+	constexpr int TT_MUT_COUNT = 1 << TT_MUT_BITS;
 	constexpr Key TT_INDEX_MASK = TT_BUCKET_COUNT - 1;
+	constexpr Key TT_MUT_MASK = TT_MUT_COUNT - 1;
 	extern int ttFreeEntries; // !! Only for singleton TT (this approach is maybe temporary) !!
 
 	//============================================================
@@ -74,7 +77,7 @@ namespace BlendXChess
 		inline void incrementAge(void);
 	private:
 		TTBucket table[TT_BUCKET_COUNT];
-		std::mutex mut;
+		std::mutex mut[TT_MUT_COUNT];
 		int16_t age;
 	};
 
@@ -90,7 +93,7 @@ namespace BlendXChess
 	inline void TranspositionTable::store(Key key, Depth depth, Bound bound, Score score, Move move)
 	{
 		{
-			std::lock_guard lock(mut);
+			std::lock_guard lock(mut[key & TT_MUT_MASK]);
 			table[key & TT_INDEX_MASK].store(key, depth, bound, score, move, age);
 		}
 	}
@@ -98,7 +101,7 @@ namespace BlendXChess
 	inline const TTEntry* TranspositionTable::probe(Key key)
 	{
 		{
-			std::lock_guard lock(mut);
+			std::lock_guard lock(mut[key & TT_MUT_MASK]);
 			return table[key & TT_INDEX_MASK].probe(key);
 		}
 	}

@@ -171,6 +171,7 @@ ThreadList::iterator MultiSearcher::bestThread(void)
 //============================================================
 bool Searcher::doMove(Move move, PositionInfo& pi)
 {
+	assert(pos.isValid());
 	assert(searchPly >= 0);
 	pos.doMove(move, pi);
 	if (pos.isAttacked(pos.pieceSq[opposite(pos.turn)][KING][0], pos.turn))
@@ -187,6 +188,7 @@ bool Searcher::doMove(Move move, PositionInfo& pi)
 //============================================================
 void Searcher::undoMove(Move move, const PositionInfo& pi)
 {
+	assert(pos.isValid());
 	pos.undoMove(move, pi);
 	--searchPly;
 	assert(searchPly >= 0);
@@ -295,28 +297,38 @@ void Searcher::idSearch(Depth depth)
 	PositionInfo prevState;
 	searchPly = 0;
 	threadLocal->results.resDepth = 0;
+	// For different positions different aspiration windows can do better
+	constexpr int aspirationDeltas[3] = { 25, 10, 40 };
+	const int aspirationDelta = aspirationDeltas[threadLocal->ID % 3];
 	// Iterative deepening
 	for (Depth curDepth = 1; curDepth <= depth; ++curDepth)
 	{
-		// Skip this depth if not in main thread and it's being searched by some other thread
-		if (!isMainThread() && shared->depthSearchedByCnt[curDepth] > 0)
-			continue;
-		++shared->depthSearchedByCnt[curDepth];
+		//// Skip this depth if not in main thread and it's being searched by some other thread
+		//if (!isMainThread() && shared->depthSearchedByCnt[curDepth] > 1)
+		//	continue;
+		//++shared->depthSearchedByCnt[curDepth];
 		// Best move and score of current iteration
 		int curBestScore(bestScore);
 		Move curBestMove(bestMove);
 		// Aspiration windows
-		int delta = 25, alpha = curBestScore - delta, beta = curBestScore + delta;
+		int delta = aspirationDelta, alpha = curBestScore - delta, beta = curBestScore + delta;
 		while (true)
 		{
 			// Initialize move picking manager
 			MoveManager<true> moveManager(*this, curBestMove);
 			curBestScore = alpha;
 			// Test every move and choose the best one
-			bool pvSearch = true;
+			bool pvSearch = true, firstMove = true;
 			while ((move = moveManager.next()) != MOVE_NONE)
 			{
-				// Do move
+				// Defer this move if it's not first and is searched elsewhere on this depth
+				if (!firstMove && !moveManager.lastMoveDeferred()
+					&& )
+				{
+					moveManager.defer(move);
+					continue;
+				}
+				// Do move (should be legal due to generation of legal ones)
 				doMove(move, prevState);
 				// Principal variation search
 				if (pvSearch)
@@ -329,6 +341,7 @@ void Searcher::idSearch(Depth depth)
 				}
 				// Undo move
 				undoMove(move, prevState);
+				firstMove = false;
 				// Timeout check
 				if (shared->stopSearch)
 					break;
@@ -436,7 +449,7 @@ Score Searcher::quiescentSearch(Score alpha, Score beta)
 		// Quiescent search
 		score = -quiescentSearch(-beta, -alpha);
 		// Undo move
-		pos.undoMove(move, prevState);
+		undoMove(move, prevState);
 		// Update alpha
 		if (score > alpha)
 		{

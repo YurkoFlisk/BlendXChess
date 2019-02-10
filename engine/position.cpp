@@ -19,6 +19,19 @@ Position::Position(void)
 }
 
 //============================================================
+// Whether the position is valid (useful for debug)
+//============================================================
+inline bool BlendXChess::Position::isValid(void)
+{
+	if (!validPieceType(info.justCaptured))
+		return false;
+	for (Square sq = Sq::A1; sq <= Sq::H8; ++sq)
+		if (!validPiece(board[sq]))
+			return false;
+	return true;
+}
+
+//============================================================
 // Clear game state
 //============================================================
 void Position::clear(void)
@@ -118,59 +131,6 @@ int Position::perft(Depth depth)
 		undoMove(move, prevState);
 	}
 	return nodes;
-}
-
-//============================================================
-// Whether a square is attacked by given side
-//============================================================
-bool Position::isAttacked(Square sq, Side by) const
-{
-	assert(by == WHITE || by == BLACK);
-	assert(sq.isValid());
-	return	(bbPawnAttack[opposite(by)][sq] &         pieceBB(by, PAWN)) ||
-			(bbKnightAttack[sq] &                     pieceBB(by, KNIGHT)) ||
-			(bbKingAttack[sq] &                       pieceBB(by, KING)) ||
-			(magicRookAttacks(sq, occupiedBB()) & (   pieceBB(by, ROOK) | pieceBB(by, QUEEN))) ||
-			(magicBishopAttacks(sq, occupiedBB()) & ( pieceBB(by, BISHOP) | pieceBB(by, QUEEN)));
-}
-
-//============================================================
-// Least valuable attacker on given square by given
-// side (king is considered most valuable here)
-//============================================================
-Square Position::leastAttacker(Square sq, Side by) const
-{
-	assert(by == WHITE || by == BLACK);
-	assert(sq.isValid());
-	Bitboard from;
-	if (from = (bbPawnAttack[opposite(by)][sq] & pieceBB(by, PAWN)))
-		return getLSB(from);
-	if (from = (bbKnightAttack[sq] & pieceBB(by, KNIGHT)))
-		return getLSB(from);
-	Bitboard mBA, mRA;
-	if (from = ((mBA = magicBishopAttacks(sq, occupiedBB())) & pieceBB(by, BISHOP)))
-		return getLSB(from);
-	if (from = ((mRA = magicRookAttacks(sq, occupiedBB())) & pieceBB(by, ROOK)))
-		return getLSB(from);
-	if (from = ((mBA | mRA) & pieceBB(by, QUEEN)))
-		return getLSB(from);
-	if (from = (bbKingAttack[sq] & pieceBB(by, KING)))
-		return getLSB(from);
-	return Sq::NONE;
-}
-
-//============================================================
-// All attackers on given square by given side
-//============================================================
-Bitboard Position::allAttackers(Square sq, Side by) const
-{
-	Bitboard mBA, mRA;
-	return (bbPawnAttack[opposite(by)][sq] & pieceBB(by, PAWN))
-		| (bbKnightAttack[sq] & pieceBB(by, KNIGHT))
-		| (bbKingAttack[sq] & pieceBB(by, KING))
-		| ((mBA = magicBishopAttacks(sq, occupiedBB())) & pieceBB(by, BISHOP))
-		| ((mRA = magicRookAttacks(sq, occupiedBB())) & pieceBB(by, ROOK))
-		| ((mBA | mRA) & pieceBB(by, QUEEN));
 }
 
 //============================================================
@@ -481,6 +441,8 @@ void Position::generateMoves(MoveList& moves)
 		REL_SQ_G1 = relSquare(Sq::G1, TURN), REL_SQ_F1 = relSquare(Sq::F1, TURN);
 	// TURN is a template parameter and is used only for optimization purposes, so it should be equal to turn
 	assert(TURN == turn);
+	// Position should be valid here
+	assert(isValid());
 	// For evasions we use more efficient approach
 	if constexpr (MG_TYPE == MG_EVASIONS)
 	{

@@ -11,23 +11,23 @@ using namespace BlendXChess;
 //============================================================
 // Constructor
 //============================================================
-template<bool LEGAL>
-MoveManager<LEGAL>::MoveManager(Searcher& searcher, Move ttMove)
+template<bool ROOT>
+MoveManager<ROOT>::MoveManager(Searcher& searcher, Move ttMove)
 	: searcher(searcher), ttMove(ttMove), state(MM_TTMOVE)
 {}
 
 //============================================================
 // Returns next picked move or MOVE_NONE if none left
 //============================================================
-template<bool LEGAL>
-Move MoveManager<LEGAL>::next(void)
+template<bool ROOT>
+Move MoveManager<ROOT>::next(void)
 {
 	Move nextMove;
 	Position& pos = searcher.pos;
 	switch (state)
 	{
-	case MM_TTMOVE:
-		state = MM_GENMOVES;
+	case MMState::TT_MOVE:
+		state = MMState::GENMOVES;
 		if (pos.isPseudoLegal(ttMove)) // we check this because there could be hash collision
 		{
 #ifdef ENGINE_DEBUG
@@ -42,7 +42,7 @@ Move MoveManager<LEGAL>::next(void)
 			assert(foundTT);
 			moveList.clear();
 #endif
-			if constexpr (LEGAL)
+			if constexpr (ROOT)
 			{
 				if (pos.isLegal(ttMove))
 					return ttMove;
@@ -66,24 +66,44 @@ Move MoveManager<LEGAL>::next(void)
 		}
 #endif
 		// [[fallthrough]] // if ttMove is inappropriate, we should proceed
-	case MM_GENMOVES:
-		if constexpr (LEGAL)
+	case MMState::GENMOVES:
+		if constexpr (ROOT)
 			pos.generateLegalMoves(moveList);
 		else
 			pos.generatePseudolegalMoves(moveList);
 		searcher.scoreMoves(moveList);
-		state = MM_GENERATED;
+		state = MMState::GENERATED;
 		// [[fallthrough]]
-	case MM_GENERATED:
+	case MMState::GENERATED:
 		nextMove = moveList.getNextBest();
 		if (nextMove == ttMove)
-			return moveList.getNextBest();
+			nextMove = moveList.getNextBest();
+		if constexpr (ROOT)
+		{
+			if (nextMove == MOVE_NONE)
+				state = MMState::DEFERRED;
+			else
+				return nextMove;
+		}
 		else
 			return nextMove;
+		// [[fallthrough]] // we should proceed if we are to return deferred moves from root chess
+	case MMState::DEFERRED:
+		assert(ROOT); // Deferred moves are only for root search
+		
 	default:
 		assert(false); // Should not occur
 	}
 	return MOVE_NONE; // Should not occur
+}
+
+//============================================================
+// Defers moves that needs to be searched later in root search
+//============================================================
+template<bool ROOT>
+Move BlendXChess::MoveManager<ROOT>::defer(Move move)
+{
+	moveList.add(move, MS_DEFERRED);
 }
 
 //============================================================

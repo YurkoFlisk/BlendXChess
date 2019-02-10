@@ -25,7 +25,7 @@ void MoveList::add(Move move)
 	moves[moveCnt++].move = move;
 }
 
-void MoveList::add(Move move, Score score)
+void MoveList::add(Move move, MoveScore score)
 {
 	assert(moveCnt < MAX_MOVECNT);
 	moves[moveCnt].move = move;

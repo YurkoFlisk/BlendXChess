@@ -37,7 +37,7 @@ namespace BlendXChess
 		PieceType justCaptured; // If last move was a capture, we store it's type here
 		uint8_t rule50; // Counter for 50-move draw rule
 		Square epSquare; // Square to which endTime passant is possible (if the last move was double pushed pawn)
-		int8_t castlingRight; // Mask representing valid castlings
+		CastlingRight castlingRight; // Mask representing valid castlings
 		Key keyZobrist; // Zobrist key of the position
 	};
 
@@ -75,6 +75,8 @@ namespace BlendXChess
 		inline Bitboard pieceBB(Side, PieceType) const;
 		inline Bitboard occupiedBB(void) const;
 		inline Bitboard emptyBB(void) const;
+		// Whether the position is valid (useful for debug)
+		bool isValid(void);
 		// Clear position
 		void clear(void);
 		// Reset position
@@ -84,11 +86,11 @@ namespace BlendXChess
 		template<bool MG_LEGAL = false>
 		int perft(Depth);
 		// Whether a square is attacked by given side
-		bool isAttacked(Square, Side) const;
+		inline bool isAttacked(Square, Side) const;
 		// Least valuable attacker on given square by given side (king is considered most valuable here)
-		Square leastAttacker(Square, Side) const;
+		inline Square leastAttacker(Square, Side) const;
 		// All attackers on given square by given side
-		Bitboard allAttackers(Square, Side) const;
+		inline Bitboard allAttackers(Square, Side) const;
 		// Whether current side is in check
 		inline bool isInCheck(void) const;
 		// Convert a move from AN notation to Move. It should be valid in current position
@@ -281,6 +283,59 @@ namespace BlendXChess
 		board[sq] = PIECE_NULL;
 		psqScore -= psqTable[c][pt][sq];
 		info.keyZobrist ^= ZobristPSQ[c][pt][sq];
+	}
+
+	//============================================================
+	// Whether a square is attacked by given side
+	//============================================================
+	inline bool Position::isAttacked(Square sq, Side by) const
+	{
+		assert(by == WHITE || by == BLACK);
+		assert(sq.isValid());
+		return (bbPawnAttack[opposite(by)][sq] & pieceBB(by, PAWN)) ||
+			(bbKnightAttack[sq] & pieceBB(by, KNIGHT)) ||
+			(bbKingAttack[sq] & pieceBB(by, KING)) ||
+			(magicRookAttacks(sq, occupiedBB()) & (pieceBB(by, ROOK) | pieceBB(by, QUEEN))) ||
+			(magicBishopAttacks(sq, occupiedBB()) & (pieceBB(by, BISHOP) | pieceBB(by, QUEEN)));
+	}
+
+	//============================================================
+	// Least valuable attacker on given square by given
+	// side (king is considered most valuable here)
+	//============================================================
+	inline Square Position::leastAttacker(Square sq, Side by) const
+	{
+		assert(by == WHITE || by == BLACK);
+		assert(sq.isValid());
+		Bitboard from;
+		if (from = (bbPawnAttack[opposite(by)][sq] & pieceBB(by, PAWN)))
+			return getLSB(from);
+		if (from = (bbKnightAttack[sq] & pieceBB(by, KNIGHT)))
+			return getLSB(from);
+		Bitboard mBA, mRA;
+		if (from = ((mBA = magicBishopAttacks(sq, occupiedBB())) & pieceBB(by, BISHOP)))
+			return getLSB(from);
+		if (from = ((mRA = magicRookAttacks(sq, occupiedBB())) & pieceBB(by, ROOK)))
+			return getLSB(from);
+		if (from = ((mBA | mRA) & pieceBB(by, QUEEN)))
+			return getLSB(from);
+		if (from = (bbKingAttack[sq] & pieceBB(by, KING)))
+			return getLSB(from);
+		return Sq::NONE;
+	}
+
+	//============================================================
+	// All attackers on given square by given side
+	//============================================================
+	inline Bitboard Position::allAttackers(Square sq, Side by) const
+	{
+		Bitboard mBA, mRA;
+		return (bbPawnAttack[opposite(by)][sq] & pieceBB(by, PAWN))
+			| (bbKnightAttack[sq] & pieceBB(by, KNIGHT))
+			| (bbKingAttack[sq] & pieceBB(by, KING))
+			| ((mBA = magicBishopAttacks(sq, occupiedBB())) & pieceBB(by, BISHOP))
+			| ((mRA = magicRookAttacks(sq, occupiedBB())) & pieceBB(by, ROOK))
+			| ((mBA | mRA) & pieceBB(by, QUEEN));
 	}
 
 	inline void Position::removeCastlingRight(CastlingRight cr)

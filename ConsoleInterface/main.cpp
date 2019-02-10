@@ -85,7 +85,10 @@ void showGreeting(void)
 //============================================================
 void showHelp(void)
 {
-	cout << "Missing now..." << endl;
+	cout << "You can set search options with 'set' command. There are following: " << endl;
+	for (const auto&[name, opt] : options)
+		cout << name << " (min " << opt.minValue << ", max " << opt.maxValue
+		     << ", def " << opt.defaultValue << "): " << endl << "  " << opt.description << endl;
 }
 
 //============================================================
@@ -140,13 +143,13 @@ void setOption(const string& opt, const string& val)
 	if (value < option.minValue)
 	{
 		option.value = option.minValue;
-		cout << "Warning: value for" << opt << " is too small, so it's set to minimum value "
+		cout << "Warning: value for " << opt << " is too small, so it's set to minimum value "
 			<< option.minValue << endl;
 	}
 	else if (value > option.maxValue)
 	{
 		option.value = option.maxValue;
-		cout << "Warning: value for" << opt << " is too big, so it's set to maximum value "
+		cout << "Warning: value for " << opt << " is too big, so it's set to maximum value "
 			<< option.maxValue << endl;
 	}
 	else
@@ -192,7 +195,7 @@ void endSearch(void)
 		cout << results.bestMove.toAN();
 		cout << ". " << stats.visitedNodes << " nodes searched in "
 			<< chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count()
-			<< " ms to depth " << results.resDepth << ". The score is " << results.score << ". "
+			<< " ms to depth " << (int)results.resDepth << ". The score is " << results.score << ". "
 			<< ttFreeEntries << " free slots in TT. " << stats.ttHits << " hits made." << endl;
 	}
 	catch (const std::runtime_error& err)
@@ -316,8 +319,16 @@ bool processEvent(const Event& e)
 						startSearch();
 				}
 			}
+			else if (game.DoMove(tokens[0], moveFmt)) // Assume this is just a move
+			{
+				cout << "Move successfully performed!" << endl;
+				updateGameState();
+				if (inGame)
+					startSearch();
+			}
 			else
-				cout << "Error: Unrecognized command " << tokens[0] << ", please try again." << endl;
+				cout << "Error: Unrecognized command or move " << tokens[0]
+				     << ", please try again." << endl;
 		}
 		else
 		{
@@ -380,7 +391,7 @@ bool processEvent(const Event& e)
 		if (se.type == SearchEventType::FINISHED) // still need to call endSearch
 			endSearch();
 		else if (se.type == SearchEventType::INFO)
-			cout << "Depth " << se.results.resDepth << ": " << se.results.bestMove.toAN()
+			cout << "Depth " << (int)se.results.resDepth << ": " << se.results.bestMove.toAN()
 				<< ", the score is " << se.results.score << "." << endl;
 		else
 			cout << "Error: Unrecognized search event type " << (int)(se.type) << endl;

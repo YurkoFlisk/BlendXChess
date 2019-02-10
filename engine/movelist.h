@@ -35,16 +35,18 @@ namespace BlendXChess
 		// Constructor
 		MoveList(void);
 		// Begin/end
-		inline MLNode* begin(void);
-		inline MLNode* end(void);
+		inline MLNode* begin(void) noexcept;
+		inline MLNode* end(void) noexcept;
 		// Getters
-		inline int count(void) const;
+		inline int count(void) const noexcept;
 		// Inline functions
-		inline bool empty(void) const;
-		inline void reset(void);
-		inline void clear(void);
+		inline bool empty(void) const noexcept;
+		inline void reset(void) noexcept;
+		inline void clear(void) noexcept;
+		// Whether there are moves left
+		inline bool movesLeft(void) const noexcept;
 		// Add a move to the list
-		void add(Move, Score);
+		void add(Move, MoveScore);
 		void add(Move);
 		// Get next move (in the order of moves array, so we should sort moves before calling this function)
 		// MLNode getNext(void);
@@ -67,34 +69,39 @@ namespace BlendXChess
 	// Implementation of inline functions
 	//============================================================
 
-	inline MLNode* MoveList::begin(void)
+	inline MLNode* MoveList::begin(void) noexcept
 	{
 		return moves;
 	}
 
-	inline MLNode* MoveList::end(void)
+	inline MLNode* MoveList::end(void) noexcept
 	{
 		return moves + moveCnt;
 	}
 
-	inline int MoveList::count(void) const
+	inline int MoveList::count(void) const noexcept
 	{
 		return moveCnt;
 	}
 
-	inline bool MoveList::empty(void) const
+	inline bool MoveList::empty(void) const noexcept
 	{
 		return moveCnt == 0;
 	}
 
-	inline void MoveList::reset(void)
+	inline void MoveList::reset(void) noexcept
 	{
 		moveIdx = 0;
 	}
 
-	inline void MoveList::clear(void)
+	inline void MoveList::clear(void) noexcept
 	{
 		moveIdx = moveCnt = 0;
+	}
+
+	inline bool MoveList::movesLeft(void) const noexcept
+	{
+		return moveIdx < moveCnt;
 	}
 
 };
