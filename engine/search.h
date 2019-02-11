@@ -95,6 +95,11 @@ namespace BlendXChess
 
 	struct SharedInfo
 	{
+		struct RootSearchState
+		{
+			int depth = DEPTH_ZERO;
+			Move move;
+		};
 		TimePoint startTime; // read-only while accessed multithreaded, thus not atomic
 		std::atomic_int timeCheckCounter;
 		std::atomic_int ttHits;
@@ -102,8 +107,10 @@ namespace BlendXChess
 		std::atomic_bool stopSearch;
 		std::atomic_bool externalStop;
 		std::atomic_bool timeout;
+		// States of search in the root of a thread with corrersponding ID
+		std::vector<RootSearchState> rootSearchStates;
 		// Count of threads search(-ing/-ed) specified depth (from root position)
-		std::deque<std::atomic_int> depthSearchedByCnt;
+		// std::deque<std::atomic_int> depthSearchedByCnt;
 		StopCause stopCause;
 		EngineProcesser processer; // External search event processer
 	};
@@ -285,6 +292,7 @@ namespace BlendXChess
 			threadCount = maxThreadCount;
 		options.threadCount = threadCount;
 		threads.resize(threadCount);
+		shared.rootSearchStates.resize(threadCount);
 	}
 
 	inline bool Searcher::isMainThread(void) const

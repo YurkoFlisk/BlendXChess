@@ -121,7 +121,7 @@ void MultiSearcher::search(void)
 		shared.timeCheckCounter = 0;
 	}
 	// Set appropriate size for array containing count of threads search(-ing/-ed) at given depth from root
-	shared.depthSearchedByCnt.resize(options.depth + 1);
+	// shared.depthSearchedByCnt.resize(options.depth + 1);
 	// Setup helper threads
 	for (unsigned int threadID = 1; threadID < options.threadCount; ++threadID)
 	{
@@ -301,6 +301,7 @@ void Searcher::idSearch(Depth depth)
 	constexpr int aspirationDeltas[3] = { 25, 10, 40 };
 	const int aspirationDelta = aspirationDeltas[threadLocal->ID % 3];
 	// Iterative deepening
+	SharedInfo::RootSearchState& searchState = shared->rootSearchStates[threadLocal->ID];
 	for (Depth curDepth = 1; curDepth <= depth; ++curDepth)
 	{
 		//// Skip this depth if not in main thread and it's being searched by some other thread
@@ -310,6 +311,7 @@ void Searcher::idSearch(Depth depth)
 		// Best move and score of current iteration
 		int curBestScore(bestScore);
 		Move curBestMove(bestMove);
+		searchState.depth = curDepth;
 		// Aspiration windows
 		int delta = aspirationDelta, alpha = curBestScore - delta, beta = curBestScore + delta;
 		while (true)
@@ -323,12 +325,13 @@ void Searcher::idSearch(Depth depth)
 			{
 				// Defer this move if it's not first and is searched elsewhere on this depth
 				if (!firstMove && !moveManager.lastMoveDeferred()
-					&& )
+					&& searchState)
 				{
 					moveManager.defer(move);
 					continue;
 				}
 				// Do move (should be legal due to generation of legal ones)
+				searchState.move = move;
 				doMove(move, prevState);
 				// Principal variation search
 				if (pvSearch)
@@ -341,6 +344,7 @@ void Searcher::idSearch(Depth depth)
 				}
 				// Undo move
 				undoMove(move, prevState);
+				searchState.move = MOVE_NONE;
 				firstMove = false;
 				// Timeout check
 				if (shared->stopSearch)
