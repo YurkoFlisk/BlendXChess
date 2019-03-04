@@ -13,7 +13,7 @@ using namespace BlendXChess;
 //============================================================
 template<bool ROOT>
 MoveManager<ROOT>::MoveManager(Searcher& searcher, Move ttMove)
-	: searcher(searcher), ttMove(ttMove), state(MM_TTMOVE)
+	: searcher(searcher), ttMove(ttMove), state(MMState::TT_MOVE)
 {}
 
 //============================================================
@@ -89,8 +89,9 @@ Move MoveManager<ROOT>::next(void)
 			return nextMove;
 		// [[fallthrough]] // we should proceed if we are to return deferred moves from root chess
 	case MMState::DEFERRED:
-		assert(ROOT); // Deferred moves are only for root search
-		
+		assert(ROOT); // Deferred moves are only for root search (currently)
+		if constexpr (ROOT)
+			return deferredList.getNext(); // ttMove can't be deferred, so no check for that
 	default:
 		assert(false); // Should not occur
 	}
@@ -101,9 +102,11 @@ Move MoveManager<ROOT>::next(void)
 // Defers moves that needs to be searched later in root search
 //============================================================
 template<bool ROOT>
-Move BlendXChess::MoveManager<ROOT>::defer(Move move)
+void BlendXChess::MoveManager<ROOT>::defer(Move move)
 {
-	moveList.add(move, MS_DEFERRED);
+	assert(ROOT);
+	if constexpr (ROOT)
+		deferredList.add(move, MS_DEFERRED);
 }
 
 //============================================================

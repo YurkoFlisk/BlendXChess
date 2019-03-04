@@ -35,10 +35,10 @@ void MoveList::add(Move move, MoveScore score)
 //============================================================
 // Get next move (in the order specified by move scores)
 //============================================================
-//MLNode MoveList::getNext(void)
-//{
-//	return moveIdx < moveCnt ? moves[moveIdx++] : MLNode {MOVE_NONE, SCORE_ZERO};
-//}
+Move MoveList::getNext(void)
+{
+	return moveIdx < moveCnt ? moves[moveIdx++].move : MOVE_NONE;
+}
 
 //============================================================
 // Get next best move (finds it among the rest ones, meaning that

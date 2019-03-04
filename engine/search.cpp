@@ -165,6 +165,18 @@ ThreadList::iterator MultiSearcher::bestThread(void)
 }
 
 //============================================================
+// Get count of threads currently searching given move on given depth
+//============================================================
+int BlendXChess::Searcher::threadsSearching(Depth depth, Move move)
+{
+	int cnt = 0;
+	for (const auto& state : shared->rootSearchStates)
+		if (state.depth == depth && state.move.load() == move)
+			++cnt;
+	return cnt;
+}
+
+//============================================================
 // Performs given move if legal on pos and updates necessary info
 // Returns false if the move is illegal, otherwise
 // returns true and fills position info for undo
@@ -304,14 +316,11 @@ void Searcher::idSearch(Depth depth)
 	SharedInfo::RootSearchState& searchState = shared->rootSearchStates[threadLocal->ID];
 	for (Depth curDepth = 1; curDepth <= depth; ++curDepth)
 	{
-		//// Skip this depth if not in main thread and it's being searched by some other thread
-		//if (!isMainThread() && shared->depthSearchedByCnt[curDepth] > 1)
-		//	continue;
-		//++shared->depthSearchedByCnt[curDepth];
-		// Best move and score of current iteration
+		// Best move and score of current iteration, assigned originally to previous' info
 		int curBestScore(bestScore);
 		Move curBestMove(bestMove);
 		searchState.depth = curDepth;
+		searchState.move = MOVE_NONE;
 		// Aspiration windows
 		int delta = aspirationDelta, alpha = curBestScore - delta, beta = curBestScore + delta;
 		while (true)
@@ -323,9 +332,9 @@ void Searcher::idSearch(Depth depth)
 			bool pvSearch = true, firstMove = true;
 			while ((move = moveManager.next()) != MOVE_NONE)
 			{
-				// Defer this move if it's not first and is searched elsewhere on this depth
+				// Defer this move if it's not deferred and enough threads are searching it on this depth
 				if (!firstMove && !moveManager.lastMoveDeferred()
-					&& searchState)
+					&& threadsSearching(curDepth, move) > 0)
 				{
 					moveManager.defer(move);
 					continue;
@@ -404,7 +413,7 @@ void Searcher::idSearch(Depth depth)
 //============================================================
 Score Searcher::quiescentSearch(Score alpha, Score beta)
 {
-	static constexpr Score DELTA_MARGIN = 330;
+	static constexpr Score DELTA_MARGIN = 400;
 	// Increment search nodes count
 	if constexpr (SEARCH_NODES_COUNT_ENABLED)
 		++shared->visitedNodes;

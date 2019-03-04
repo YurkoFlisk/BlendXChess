@@ -97,8 +97,8 @@ namespace BlendXChess
 	{
 		struct RootSearchState
 		{
-			int depth = DEPTH_ZERO;
-			Move move;
+			std::atomic_int depth = DEPTH_ZERO;
+			std::atomic<Move> move;
 		};
 		TimePoint startTime; // read-only while accessed multithreaded, thus not atomic
 		std::atomic_int timeCheckCounter;
@@ -108,7 +108,7 @@ namespace BlendXChess
 		std::atomic_bool externalStop;
 		std::atomic_bool timeout;
 		// States of search in the root of a thread with corrersponding ID
-		std::vector<RootSearchState> rootSearchStates;
+		std::deque<RootSearchState> rootSearchStates;
 		// Count of threads search(-ing/-ed) specified depth (from root position)
 		// std::deque<std::atomic_int> depthSearchedByCnt;
 		StopCause stopCause;
@@ -197,6 +197,8 @@ namespace BlendXChess
 		// Helpers for ply-adjustment of scores (mate ones) when (extracted from)/(inserted to) a transposition table
 		inline Score scoreToTT(Score) const;
 		inline Score scoreFromTT(Score) const;
+		// Get count of threads currently searching given move on given depth
+		int threadsSearching(Depth, Move);
 		// Performs given move if legal on pos and updates necessary info
 		// Returns false if the move is illegal, otherwise
 		// returns true and fills position info for undo

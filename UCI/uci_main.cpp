@@ -55,7 +55,7 @@ int main(int argc, char **argv)
 	// Initialization of basic engine-related stuff
 	Game::initialize();
 	Position pos;
-	SearchResults results;
+	SearchReturn results;
 	SearchOptions options = DEFAULT_SEARCH_OPTIONS;
 	// Default options
 	// Main UCI loop
@@ -85,7 +85,16 @@ int main(int argc, char **argv)
 				cout << "readyok" << endl;
 			else if (command == "setoption")
 			{
-
+				// TEMPORARY ASSUME option name doesn't contain
+				// spaces (so current token separation is correct)
+				if (tokens.size() <= 2 || tokens[1] != "name") // <=
+					errorLog("Warning: missing option name for 'setoption'");
+				else if (tokens.size() == 3)
+					tokens[2];
+				else if (tokens.size() < 5 || tokens[3] != "value")
+				{
+					tokens[2] tokens[4];
+				}
 			}
 			else if (command == "ucinewgame")
 			{
@@ -93,7 +102,9 @@ int main(int argc, char **argv)
 			}
 			else if (command == "position")
 			{
-				if (tokens[1] == "startpos")
+				if (tokens.size() < 2)
+					errorLog("Warning: 'position' command without argument");
+				else if (tokens[1] == "startpos")
 					pos.reset();
 				else if (tokens[1] == "fen")
 				{
@@ -115,12 +126,12 @@ int main(int argc, char **argv)
 			}
 			else if (command == "stop")
 			{
-				results = searcher.endSearch();
+				auto[results, stats] = searcher.endSearch();
 				cout << "bestmove " << pos.moveToStr(results.bestMove, FMT_UCI) << endl;
 			}
 			else if (command == "ponderhit")
 			{
-
+				// EMPTY NOW
 			}
 			else if (command == "quit")
 			{
