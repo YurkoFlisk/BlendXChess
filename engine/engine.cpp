@@ -15,9 +15,10 @@ using namespace BlendXChess;
 // Constructor
 //============================================================
 Game::Game(void)
-	: gameState(GameState::UNDEFINED), searchOptions(DEFAULT_SEARCH_OPTIONS)
+	: gameState(GameState::UNDEFINED)
 {
-	reset();
+	if (initialized)
+		reset();
 }
 
 //============================================================
@@ -28,6 +29,7 @@ void Game::initialize(void)
 	initPSQ();
 	initBB();
 	initZobrist();
+	initialized = true;
 }
 
 //============================================================
@@ -47,9 +49,11 @@ void Game::clear(void)
 //============================================================
 void Game::reset(void)
 {
+	if (!initialized)
+		return;
 	// If we are in search, stop it
 	if (searcher.isInSearch())
-		lastSearchReturn = searcher.endSearch();
+		searcher.endSearch();
 	clear();
 	pos.reset(); // Position::clear will also be called from here but it's not crucial
 	gameState = GameState::ACTIVE;
@@ -189,11 +193,29 @@ bool Game::UndoMove(void)
 }
 
 //============================================================
+// Change value of specified option to given (it's parsed here)
+// Throws if no such option found
+//============================================================
+void Game::setOption(std::string name, const std::string& value)
+{
+	// options.set(name, value);
+	std::transform(name.begin(), name.end(), name.begin(), std::tolower);
+	if (name == "timelimit")
+		searcher.setTimeLimit(convertTo<unsigned int>(value));
+	else if (name == "threadcount")
+		searcher.setThreadCount(convertTo<unsigned int>(value));
+	else if (name == "searchdepth" || name == "depth")
+		searcher.setDepth(convertTo<Depth>(value));
+	else
+		throw std::runtime_error("Unrecognized option '" + name + "'");
+}
+
+//============================================================
 // Begins search on current position and using current options
 //============================================================
 void Game::startSearch(void)
 {
-	searcher.startSearch(pos, searchOptions);
+	searcher.startSearch(pos);
 }
 
 //============================================================
@@ -201,7 +223,7 @@ void Game::startSearch(void)
 //============================================================
 SearchReturn Game::endSearch(void)
 {
-	return lastSearchReturn = searcher.endSearch();
+	return searcher.endSearch();
 }
 
 //============================================================
@@ -299,131 +321,3 @@ void Game::writeFEN(std::ostream& ostr, bool omitCounters) const
 {
 	pos.writeFEN(ostr, omitCounters);
 }
-
-//============================================================
-// Main AI function
-// Returns position score and outputs the best move to the reference parameter
-// Returns optionally resultant search depth, traversed nodes (including from
-// quiscent search), transposition table hits, through reference parameters
-//============================================================
-//Score Game::AIMove(Move& bestMove, Depth depth, Depth& resDepth, int& nodes, int& hits)
-//{
-//	// If we are already in search, the new one won't be launched
-//	if (inSearch)
-//		throw std::runtime_error("Another search is already launched");
-//	nodes = 0;
-//	// If game is not active, no search is possible
-//	if (gameState != GS_ACTIVE)
-//	{
-//		lastSearchNodes = nodes = 1;
-//		bestMove = MOVE_NONE;
-//		if (gameState == GS_DRAW)
-//			return SCORE_ZERO;
-//		else
-//			return (gameState == GS_WHITE_WIN) == (game.turn == WHITE) ? SCORE_WIN : SCORE_LOSE;
-//	}
-//	// Misc
-//	if constexpr (TT_HITS_COUNT_ENABLED)
-//		ttHits = 0;
-//	if constexpr (SEARCH_NODES_COUNT_ENABLED)
-//		lastSearchNodes = 0;
-//	inSearch = true;
-//	bestMove = MOVE_NONE;
-//	int bestScore(SCORE_ZERO);
-//	Move move;
-//	Score score;
-//	for (int i = 0; i <= depth; ++i)
-//		killers[i].clear();
-//	// Setup time management
-//	if constexpr (TIME_CHECK_ENABLED)
-//	{
-//		startTime = std::chrono::high_resolution_clock::now();
-//		timeCheckCounter = 0;
-//	}
-//	stopSearch = false;
-//	// Setup search state
-//	SearchState ss;
-//	ss.searchPly = 0;
-//	Position& game = (ss.game = game);
-//	// Iterative deepening
-//	for (Depth searchDepth = 1; searchDepth <= depth; ++searchDepth)
-//	{
-//		// Best move and score of current iteration
-//		int curBestScore(bestScore);
-//		Move curBestMove(bestMove);
-//		// Aspiration windows
-//		int delta = 25, alpha = curBestScore - delta, beta = curBestScore + delta;
-//		while (true)
-//		{
-//			// Initialize move picking manager
-//			MoveManager<true> moveManager(game, curBestMove);
-//			curBestScore = alpha;
-//			// Test every move and choose the best one
-//			bool pvSearch = true;
-//			while ((move = moveManager.next()) != MOVE_NONE)
-//			{
-//				// Do move
-//				doMove(move, ss);
-//				// Principal variation search
-//				if (pvSearch)
-//					score = -pvs(searchDepth - 1, -beta, -curBestScore, ss);
-//				else
-//				{
-//					score = -pvs(searchDepth - 1, -curBestScore - 1, -curBestScore, ss);
-//					if (!stopSearch && beta > score && score > curBestScore)
-//						score = -pvs(searchDepth - 1, -beta, -score, ss);
-//				}
-//				// Undo move
-//				undoMove(move, ss);
-//				// Timeout check
-//				if (stopSearch)
-//					break;
-//				// If this move was better than current best one, update best move and score
-//				if (score > curBestScore)
-//				{
-//					pvSearch = false;
-//					curBestScore = score;
-//					curBestMove = move;
-//					// If beta-cutoff occurs, stop search
-//					if (curBestScore >= beta)
-//					{
-//						// Don't update history and killers while in aspiration window
-//						// history[move.from()][move.to()] += searchDepth * searchDepth;
-//						break;
-//					}
-//				}
-//			}
-//			// Timeout check
-//			if (stopSearch)
-//				break;
-//			// If bestScore is inside the window, it is final score
-//			if (alpha < curBestScore && curBestScore < beta)
-//				break;
-//			// Update delta and aspiration window otherwise
-//			delta <<= 1;
-//			alpha = std::max<int>(curBestScore - delta, SCORE_LOSE);
-//			beta = std::min<int>(curBestScore + delta, SCORE_WIN);
-//		}
-//		// Timeout check
-//		if (stopSearch)
-//			break;
-//		// Only if there was no forced search stop we should accept this
-//		// iteration's best move and score as new best overall
-//		bestMove = curBestMove;
-//		bestScore = curBestScore;
-//		resDepth = searchDepth;
-//		// Update history and killers
-//		if (!game.isCaptureMove(bestMove))
-//		{
-//			updateKillers(ss.searchPly, bestMove);
-//			history[bestMove.from()][bestMove.to()] += searchDepth * searchDepth;
-//		}
-//	}
-//	// Set nodes count and transposition table hits and return position score
-//	if constexpr (SEARCH_NODES_COUNT_ENABLED)
-//		nodes = lastSearchNodes;
-//	if constexpr (TT_HITS_COUNT_ENABLED)
-//		hits = ttHits;
-//	inSearch = false;
-//	return bestScore;
-//}

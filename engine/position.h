@@ -76,7 +76,7 @@ namespace BlendXChess
 		inline Bitboard occupiedBB(void) const;
 		inline Bitboard emptyBB(void) const;
 		// Whether the position is valid (useful for debug)
-		bool isValid(void);
+		bool isValid(void) const;
 		// Clear position
 		void clear(void);
 		// Reset position
@@ -98,15 +98,13 @@ namespace BlendXChess
 		// Convert a move from SAN notation to Move. It should be valid in current position
 		Move moveFromSAN(const std::string&);
 		// Convert a move to SAN notation. It should be valid in current position
-		std::string moveToSAN(Move);
+		std::string moveToSAN(Move) const;
 		// Convert move from given string format
 		Move moveFromStr(const std::string&, MoveFormat);
 		// Convert move to given string format
-		std::string moveToStr(Move, MoveFormat);
+		std::string moveToStr(Move, MoveFormat) const;
 		// Convert a move from UCI notation to Move. It should be valid in current position 
 		Move moveFromUCI(const std::string&);
-		// Convert a move  to UCI notation. It should be valid in current position
-		std::string moveToUCI(Move);
 		// Doing and undoing a move
 		// These are not well optimized and are being interface for external calls
 		// Engine internals (eg in search) use doMove and undoMove instead
@@ -135,39 +133,39 @@ namespace BlendXChess
 		// Whether the move is a capture
 		inline bool isCaptureMove(Move) const;
 		// Internal test for pseudo-legality (still assumes some conditions which TT-move must satisfy)
-		bool isPseudoLegal(Move);
+		bool isPseudoLegal(Move) const;
 		// Internal test for legality (assumes pseudo-legality of argument)
-		inline bool isLegal(Move);
+		inline bool isLegal(Move) const;
 		// Helper for move generating functions
 		// It adds pseudo-legal move to vector if LEGAL == false or, otherwise, if move is legal
 		template<Side TURN, bool LEGAL>
-		inline void addMoveIfSuitable(Move, MoveList&);
+		inline void addMoveIfSuitable(Move, MoveList&) const;
 		// Reveal PAWN moves in given direction from attack bitboard (legal if LEGAL == true and pseudolegal otherwise)
 		template<Side TURN, bool LEGAL>
-		void revealPawnMoves(Bitboard, Square, MoveList&);
+		void revealPawnMoves(Bitboard, Square, MoveList&) const;
 		// Reveal NON-PAWN moves from attack bitboard (legal if LEGAL == true and pseudolegal otherwise)
 		template<Side TURN, bool LEGAL>
-		void revealMoves(Square, Bitboard, MoveList&);
+		void revealMoves(Square, Bitboard, MoveList&) const;
 		// Generate pawn moves. If MG_TYPE == MG_EVASIONS, only to distBB squares
 		template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
-		void generatePawnMoves(MoveList&, Bitboard = Bitboard());
+		void generatePawnMoves(MoveList&, Bitboard = Bitboard()) const;
 		// Generate non-pawn and non-king moves. Only to destBB squares irrespectively of MG_TYPE
 		template<Side TURN, bool LEGAL>
-		void generateFigureMoves(MoveList&, Bitboard);
+		void generateFigureMoves(MoveList&, Bitboard) const;
 		// Generate moves (legal if LEGAL == true and pseudolegal otherwise)
 		template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
-		void generateMoves(MoveList&);
+		void generateMoves(MoveList&) const;
 		// Generate moves helpers
 		// Note that when we are in check, all evasions are generated regardless of what MG_TYPE parameter is passed
 		// (Almost) useless promotions to rook and bishop are omitted even in case of MG_TYPE == MG_ALL
 		template<MoveGen MG_TYPE = MG_ALL>
-		inline void generateLegalMoves(MoveList&);
+		inline void generateLegalMoves(MoveList&) const;
 		template<MoveGen MG_TYPE = MG_ALL>
-		inline void generatePseudolegalMoves(MoveList&);
+		inline void generatePseudolegalMoves(MoveList&) const;
 		// Same as generateLegalMoves, but promotions to rook and bishop are included
 		// Thought to be useful only when checking moves for legality
 		template<MoveGen MG_TYPE = MG_ALL>
-		inline void generateLegalMovesEx(MoveList&);
+		inline void generateLegalMovesEx(MoveList&) const;
 		// Board
 		Piece board[SQUARE_CNT];
 		// Piece list and supporting information
@@ -345,18 +343,21 @@ namespace BlendXChess
 			info.castlingRight &= ~cr, info.keyZobrist ^= ZobristCR[cr];
 	}
 
-	inline bool Position::isLegal(Move move)
+	inline bool Position::isLegal(Move move) const
 	{
 		// MAYBE TEMPORARY (relatively slow and easy approach is used)
 		PositionInfo prevState;
-		doMove(move, prevState);
+		// Here const_cast-approach is acceptable since the principal structure of position
+		// is not changed, even though e.g. order of elements in piece lists may be changed
+		auto* const thisObj = const_cast<Position*>(this);
+		thisObj->doMove(move, prevState);
 		const bool legal = !isAttacked(pieceSq[opposite(turn)][KING][0], turn);
-		undoMove(move, prevState);
+		thisObj->undoMove(move, prevState);
 		return legal;
 	}
 
 	template<MoveGen MG_TYPE>
-	inline void Position::generateLegalMoves(MoveList& moves)
+	inline void Position::generateLegalMoves(MoveList& moves) const
 	{
 		if (turn == WHITE)
 			if (isAttacked(pieceSq[WHITE][KING][0], BLACK))
@@ -371,7 +372,7 @@ namespace BlendXChess
 	}
 
 	template<MoveGen MG_TYPE>
-	inline void Position::generatePseudolegalMoves(MoveList& moves)
+	inline void Position::generatePseudolegalMoves(MoveList& moves) const
 	{
 		if (turn == WHITE)
 			if (isAttacked(pieceSq[WHITE][KING][0], BLACK))
@@ -386,7 +387,7 @@ namespace BlendXChess
 	}
 
 	template<MoveGen MG_TYPE>
-	inline void Position::generateLegalMovesEx(MoveList& moves)
+	inline void Position::generateLegalMovesEx(MoveList& moves) const
 	{
 		generateLegalMoves<MG_TYPE>(moves);
 		Move move;
@@ -404,7 +405,7 @@ namespace BlendXChess
 	}
 
 	template<Side TURN, bool LEGAL>
-	inline void Position::addMoveIfSuitable(Move move, MoveList& moves)
+	inline void Position::addMoveIfSuitable(Move move, MoveList& moves) const
 	{
 		static_assert(TURN == WHITE || TURN == BLACK,
 			"TURN template parameter should be either WHITE or BLACK in this function");
@@ -412,14 +413,17 @@ namespace BlendXChess
 		if constexpr (LEGAL)
 		{
 			PositionInfo prevState;
+			// Here const_cast-approach is acceptable since the principal structure of position
+			// is not changed, even though e.g. order of elements in piece lists may be changed
+			auto* const thisObj = const_cast<Position*>(this);
 			// A pseudolegal move is legal iff the king is not under attack when it is performed
-			doMove(move, prevState);
+			thisObj->doMove(move, prevState);
 			// After doMove, turn has changed until undoMove, so it is critical that in the next two lines we use TURN
 			// Score is set in move scoring function of Engine class, thus omitted
 			if (!isAttacked(pieceSq[TURN][KING][0], opposite(TURN)))
 				moves.add(move);
 			// Restore to a previous state
-			undoMove(move, prevState);
+			thisObj->undoMove(move, prevState);
 		}
 		// If we are looking for pseudolegal moves, don't check anything, as we already know that move is pseudolegal
 		else

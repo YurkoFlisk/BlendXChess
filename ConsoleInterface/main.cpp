@@ -24,27 +24,26 @@ TimePoint startTime, endTime;
 // Struct for holding various info for search options
 //============================================================
 
-struct Option
+struct OptionInfo
 {
-	Option(void) = default;
-	Option(int minValue, int maxValue, int defaultValue, std::string desc)
+	OptionInfo(void) = default;
+	OptionInfo(int minValue, int maxValue, int defaultValue, std::string desc)
 		: minValue(minValue), maxValue(maxValue),
-		defaultValue(defaultValue), value(defaultValue), description(std::move(desc))
+		defaultValue(defaultValue), description(std::move(desc))
 	{}
 	int minValue;
 	int maxValue;
 	int defaultValue;
-	int value;
 	std::string description;
 };
 
 // Map of available options
-std::unordered_map<string, Option> options = {
-	{"depth", Option(1, 20, 10,
+std::unordered_map<string, OptionInfo> optionInfos = {
+	{"depth", OptionInfo(1, 20, 10,
 	"Orientive depth of search until quiescence search is applied")},
-	{"threadCount", Option(1, Game::getMaxThreadCount(), Game::getMaxThreadCount(),
+	{"threadCount", OptionInfo(1, Game::getMaxThreadCount(), Game::getMaxThreadCount(),
 	"Count of threads for search")},
-	{"timeLimit", Option(1, 100000, 5000,
+	{"timeLimit", OptionInfo(1, 100000, 5000,
 	"Time limit of search")}
 };
 
@@ -86,7 +85,7 @@ void showGreeting(void)
 void showHelp(void)
 {
 	cout << "You can set search options with 'set' command. There are following: " << endl;
-	for (const auto&[name, opt] : options)
+	for (const auto&[name, opt] : optionInfos)
 		cout << name << " (min " << opt.minValue << ", max " << opt.maxValue
 		     << ", def " << opt.defaultValue << "): " << endl << "  " << opt.description << endl;
 }
@@ -96,67 +95,10 @@ void showHelp(void)
 //============================================================
 void showOptions(void)
 {
-	cout << "Depth: " << options["depth"].value << endl;
-	cout << "Thread count: " << options["threadCount"].value << endl;
-	cout << "Time limit: " << options["timeLimit"].value << "ms" << endl;
-}
-
-//============================================================
-// Apply search options stored in 'options' to a game object 
-//============================================================
-void applySearchOptions(void)
-{
-	SearchOptions searchOptions;
-	searchOptions.depth = options["depth"].value;
-	searchOptions.threadCount = options["threadCount"].value;
-	searchOptions.timeLimit = options["timeLimit"].value;
-	game.setSearchOptions(searchOptions);
-}
-
-//============================================================
-// Set search option
-//============================================================
-void setOption(const string& opt, const string& val)
-{
-	auto optIt = options.find(opt);
-	if (optIt == options.end())
-	{
-		cout << "Error: Could not find option " << opt << endl;
-		return;
-	}
-	int value;
-	try
-	{
-		value = std::stoi(val);
-	}
-	catch (const invalid_argument&)
-	{
-		cout << "Error: value for " << opt << " is not an integer";
-		return;
-	}
-	catch (const out_of_range&)
-	{
-		cout << "Error: value for " << opt << " is out of integer range";
-		return;
-	}
-	Option& option = optIt->second;
-	if (value < option.minValue)
-	{
-		option.value = option.minValue;
-		cout << "Warning: value for " << opt << " is too small, so it's set to minimum value "
-			<< option.minValue << endl;
-	}
-	else if (value > option.maxValue)
-	{
-		option.value = option.maxValue;
-		cout << "Warning: value for " << opt << " is too big, so it's set to maximum value "
-			<< option.maxValue << endl;
-	}
-	else
-	{
-		option.value = value;
-		cout << "Option " << opt << " successfully set to " << value << endl;
-	}
+	const SearchOptions& opts = game.getSearchOptions();
+	cout << "Depth: " << (int)opts.depth << endl;
+	cout << "Thread count: " << opts.threadCount << endl;
+	cout << "Time limit: " << opts.timeLimit << "ms" << endl;
 }
 
 //============================================================
@@ -167,7 +109,6 @@ void startSearch(void)
 	cout << "Starting search on current position..." << endl;
 	try
 	{
-		applySearchOptions();
 		startTime = chrono::high_resolution_clock::now();
 		game.startSearch();
 	}
@@ -184,6 +125,7 @@ void endSearch(void)
 {
 	try
 	{
+		// Returns results of just stopped search (lastSearchReturn)
 		auto[results, stats] = game.endSearch();
 		endTime = chrono::high_resolution_clock::now();
 		if (!game.DoMove(results.bestMove))
@@ -338,8 +280,15 @@ bool processEvent(const Event& e)
 					cout << "Error: set what?" << endl;
 				else if (tokens.size() == 2)
 					cout << "Error: set " << tokens[1] << " to what value?" << endl;
-				else
-					setOption(tokens[1], tokens[2]);
+				else try
+				{
+					game.setOption(tokens[1], tokens[2]);
+					cout << "Option " << tokens[1] << " successfully set to " << tokens[2] << endl;
+				}
+				catch (const std::runtime_error& err)
+				{
+					cout << err.what() << endl;
+				}
 			}
 			else if (tokens[0] == "position")
 			{
@@ -388,11 +337,12 @@ bool processEvent(const Event& e)
 	else if (e.source == EventSource::ENGINE)
 	{
 		SearchEvent se = get<SearchEvent>(e.eventInfo);
-		if (se.type == SearchEventType::FINISHED) // still need to call endSearch
-			endSearch();
+		SearchResults& res = se.results.first;
+		if (se.type == SearchEventType::FINISHED)
+			endSearch(); // Search is already stopped, so this will use 'lastSearchReturn'
 		else if (se.type == SearchEventType::INFO)
-			cout << "Depth " << (int)se.results.resDepth << ": " << se.results.bestMove.toAN()
-				<< ", the score is " << se.results.score << "." << endl;
+			cout << "Depth " << (int)res.resDepth << ": " << res.bestMove.toAN()
+			     << ", the score is " << res.score << "." << endl;
 		else
 			cout << "Error: Unrecognized search event type " << (int)(se.type) << endl;
 	}

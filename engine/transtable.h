@@ -92,7 +92,7 @@ namespace BlendXChess
 
 	inline void TranspositionTable::store(Key key, Depth depth, Bound bound, Score score, Move move)
 	{
-		{
+		{ // Lock doesn't work correctly on some compilers (e.g. VC v141) without this...
 			std::lock_guard lock(mut[key & TT_MUT_MASK]);
 			table[key & TT_INDEX_MASK].store(key, depth, bound, score, move, age);
 		}
@@ -100,7 +100,7 @@ namespace BlendXChess
 
 	inline const TTEntry* TranspositionTable::probe(Key key)
 	{
-		{
+		{ // Lock doesn't work correctly on some compilers (e.g. VC v141) without this...
 			std::lock_guard lock(mut[key & TT_MUT_MASK]);
 			return table[key & TT_INDEX_MASK].probe(key);
 		}
@@ -116,7 +116,10 @@ namespace BlendXChess
 
 	inline void TranspositionTable::incrementAge(void)
 	{
-		++age;
+		if (age == std::numeric_limits<decltype(age)>::max()) // avoid age overflow
+			clear();
+		else
+			++age;
 	}
 };
 

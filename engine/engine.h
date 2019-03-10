@@ -13,6 +13,7 @@
 #include <thread>
 #include <unordered_map>
 #include <chrono>
+#include <limits>
 #include "position.h"
 #include "transtable.h"
 #include "search.h"
@@ -78,12 +79,19 @@ namespace BlendXChess
 		void reset(void);
 		// Update game state
 		void updateGameState(void);
+		// Convert move from given string format
+		inline Move moveFromStr(const std::string& moveStr, MoveFormat fmt);
+		// Convert move to given string format
+		inline std::string moveToStr(Move move, MoveFormat fmt) const;
 		// Doing and undoing a move
 		// These are not well optimized and are being interface for external calls
 		// Engine internals (eg in search) use doMove and undoMove instead
 		bool DoMove(Move);
 		bool DoMove(const std::string&, MoveFormat);
 		bool UndoMove(void);
+		// Change value of specified option to given (it's parsed here)
+		// Throws if no such option found
+		void setOption(std::string name, const std::string& value = "");
 		// Searching interface functions
 		void startSearch(void);
 		SearchReturn endSearch(void);
@@ -114,18 +122,19 @@ namespace BlendXChess
 			// is easier than retrieve it when needed in writeGame method)
 			std::array<std::string, MOVE_FORMAT_CNT> moveStr;
 		};
+		// Convert string to number
+		template<typename T>
+		static inline T convertTo(const std::string&);
 		// Whether position is draw by insufficient material
 		bool drawByMaterial(void) const;
 		// Whether position is threefold repeated
 		bool threefoldRepetitionDraw(void) const;
+		// Whether engine core is initialized
+		inline static bool initialized = false;
 		// Current game position (!! not the one changed in-search !!)
 		Position pos;
 		// Move searcher
 		MultiSearcher searcher;
-		// Search options (they are rarely changed during 1 game)
-		SearchOptions searchOptions;
-		// Result of last preformed search
-		SearchReturn lastSearchReturn;
 		// Game state
 		GameState gameState;
 		// Cause of draw game state (valid only if gameState == GS_DRAW)
@@ -169,7 +178,7 @@ namespace BlendXChess
 
 	inline const SearchOptions& Game::getSearchOptions(void) const
 	{
-		return searchOptions;
+		return searcher.getOptions();
 	}
 
 	inline const Position& Game::getPosition(void) const
@@ -184,12 +193,22 @@ namespace BlendXChess
 
 	inline void Game::setSearchOptions(const SearchOptions& options)
 	{
-		searchOptions = options;
+		searcher.setOptions(options);
 	}
 
 	inline void Game::setSearchProcesser(const EngineProcesser& proc)
 	{
 		searcher.setProcesser(proc);
+	}
+
+	inline Move Game::moveFromStr(const std::string& moveStr, MoveFormat fmt)
+	{
+		return pos.moveFromStr(moveStr, fmt);
+	}
+
+	inline std::string Game::moveToStr(Move move, MoveFormat fmt) const
+	{
+		return pos.moveToStr(move, fmt);
 	}
 
 	inline std::string Game::getPositionFEN(bool omitCounters) const
@@ -203,6 +222,37 @@ namespace BlendXChess
 		if (isInSearch())
 			return 0;
 		return pos.perft<MG_LEGAL>(depth);
+	}
+
+	template<typename T>
+	inline T Game::convertTo(const std::string& str)
+	{
+		static_assert(std::is_arithmetic_v<T>, "'T' should be numeric type");
+		try
+		{
+			if constexpr (std::is_unsigned_v<T>)
+			{
+				unsigned long long value = std::stoull(str);
+				if (value > std::numeric_limits<T>::max() || value < std::numeric_limits<T>::min())
+					throw std::runtime_error(str + " is out of 'T' range");
+				return static_cast<T>(value);
+			}
+			else
+			{
+				long long value = std::stoll(str);
+				if (value > std::numeric_limits<T>::max() || value < std::numeric_limits<T>::min())
+					throw std::runtime_error(str + " is out of 'T' range");
+				return static_cast<T>(value);
+			}
+		}
+		catch (const std::invalid_argument&)
+		{
+			throw std::runtime_error("Cannot convert " + str + " to 'T'");
+		}
+		catch (const std::out_of_range&)
+		{
+			throw std::runtime_error(str + " is out of 'T' range");
+		}
 	}
 };
 

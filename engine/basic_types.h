@@ -620,19 +620,31 @@ namespace BlendXChess
 		{
 			if (type() == MT_CASTLING)
 				return (to().file() == fileFromAN('g') ? "O-O" : "O-O-O");
-			else
-			{
-				std::string AN = from().toAN() + "-" + to().toAN();
-				if (type() == MT_PROMOTION)
-					switch (promotion())
-					{
-					case KNIGHT:	AN.push_back('N'); break;
-					case BISHOP:	AN.push_back('B'); break;
-					case ROOK:		AN.push_back('R'); break;
-					case QUEEN:		AN.push_back('Q'); break;
-					}
-				return AN;
-			}
+			std::string AN = from().toAN() + "-" + to().toAN();
+			if (type() == MT_PROMOTION)
+				switch (promotion())
+				{
+				case KNIGHT:	AN.push_back('N'); break;
+				case BISHOP:	AN.push_back('B'); break;
+				case ROOK:		AN.push_back('R'); break;
+				case QUEEN:		AN.push_back('Q'); break;
+				}
+			return AN;
+		}
+		std::string toUCI(void) const
+		{
+			if (move == MOVE_NONE)
+				return "0000";
+			std::string moveStr = from().toAN() + to().toAN();
+			if (type() == MT_PROMOTION)
+				switch (promotion())
+				{
+				case KNIGHT:	moveStr.push_back('n'); break;
+				case BISHOP:	moveStr.push_back('b'); break;
+				case ROOK:		moveStr.push_back('r'); break;
+				case QUEEN:		moveStr.push_back('q'); break;
+				}
+			return moveStr;
 		}
 		constexpr inline MoveRaw& raw(void) noexcept
 		{

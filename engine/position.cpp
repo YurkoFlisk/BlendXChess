@@ -21,7 +21,7 @@ Position::Position(void)
 //============================================================
 // Whether the position is valid (useful for debug)
 //============================================================
-inline bool BlendXChess::Position::isValid(void)
+bool BlendXChess::Position::isValid(void) const
 {
 	if (!validPieceType(info.justCaptured))
 		return false;
@@ -241,7 +241,7 @@ void Position::undoMove(Move move, const PositionInfo& prevInfo)
 // Internal test for pseudo-legality (still assumes some conditions
 // which TT-move satisfies, eg castlings have appropriate from-to squares)
 //============================================================
-bool Position::isPseudoLegal(Move move)
+bool Position::isPseudoLegal(Move move) const
 {
 	const Square from = move.from(), to = move.to();
 	if (getPieceSide(board[from]) != turn || getPieceSide(board[to]) == turn
@@ -278,7 +278,7 @@ bool Position::isPseudoLegal(Move move)
 // Reveal PAWN moves in given direction from attack bitboard (legal if LEGAL == true and pseudolegal otherwise)
 //============================================================
 template<Side TURN, bool LEGAL>
-void Position::revealPawnMoves(Bitboard destBB, Square direction, MoveList& moves)
+void Position::revealPawnMoves(Bitboard destBB, Square direction, MoveList& moves) const
 {
 	static_assert(TURN == WHITE || TURN == BLACK,
 		"TURN template parameter should be either WHITE or BLACK in this function");
@@ -305,7 +305,7 @@ void Position::revealPawnMoves(Bitboard destBB, Square direction, MoveList& move
 // Reveal NON-PAWN moves from attack bitboard (legal if LEGAL == true and pseudolegal otherwise)
 //============================================================
 template<Side TURN, bool LEGAL>
-void Position::revealMoves(Square from, Bitboard destBB, MoveList& moves)
+void Position::revealMoves(Square from, Bitboard destBB, MoveList& moves) const
 {
 	static_assert(TURN == WHITE || TURN == BLACK,
 		"TURN template parameter should be either WHITE or BLACK in this function");
@@ -322,7 +322,7 @@ void Position::revealMoves(Square from, Bitboard destBB, MoveList& moves)
 // Generate pawn moves. Only to distBB squares if MG_TYPE == MG_EVASIONS
 //============================================================
 template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
-void Position::generatePawnMoves(MoveList& moves, Bitboard destBB)
+void Position::generatePawnMoves(MoveList& moves, Bitboard destBB) const
 {
 	static_assert(TURN == WHITE || TURN == BLACK,
 		"TURN template parameter should be either WHITE or BLACK in this function");
@@ -334,7 +334,7 @@ void Position::generatePawnMoves(MoveList& moves, Bitboard destBB)
 	if constexpr (MG_TYPE != MG_NON_CAPTURES)
 	{
 		// Left and right pawn capture moves (including promotions)
-		if constexpr (MG_TYPE == MG_EVASIONS) // destBB is only valid in this case
+		if constexpr (MG_TYPE == MG_EVASIONS) // destBB is valid in this case
 		{
 			revealPawnMoves<TURN, LEGAL>(bbShiftD<LEFT_CAPT>(
 				pieceBB(TURN, PAWN)) & colorBB[opposite(TURN)] & destBB, LEFT_CAPT, moves);
@@ -364,10 +364,10 @@ void Position::generatePawnMoves(MoveList& moves, Bitboard destBB)
 	}
 	if constexpr (MG_TYPE != MG_CAPTURES)
 	{
-		if constexpr (MG_TYPE == MG_EVASIONS)
+		if constexpr (MG_TYPE == MG_EVASIONS) // destBB is valid in this case
 		{
 			// One-step pawn forward moves (including promotions)
-			Bitboard pawnDestBB = bbShiftD<FORWARD>(pieceBB(TURN, PAWN)) & emptyBB();
+			const Bitboard pawnDestBB = bbShiftD<FORWARD>(pieceBB(TURN, PAWN)) & emptyBB();
 			revealPawnMoves<TURN, LEGAL>(destBB & pawnDestBB, FORWARD, moves);
 			// Two-step pawn forward moves (here we can't promote, so don't use revealPawnMoves)
 			destBB &= bbShiftD<FORWARD>(pawnDestBB & BB_REL_RANK_3) & emptyBB();
@@ -394,7 +394,7 @@ void Position::generatePawnMoves(MoveList& moves, Bitboard destBB)
 // Generate non-pawn and non-king moves. Only to destBB squares irrespectively of MG_TYPE
 //============================================================
 template<Side TURN, bool LEGAL>
-void Position::generateFigureMoves(MoveList& moves, Bitboard destBB)
+void Position::generateFigureMoves(MoveList& moves, Bitboard destBB) const
 {
 	Square from;
 	// Knight moves
@@ -431,7 +431,7 @@ void Position::generateFigureMoves(MoveList& moves, Bitboard destBB)
 // Generate all moves (legal if LEGAL == true and pseudolegal otherwise)
 //============================================================
 template<Side TURN, MoveGen MG_TYPE, bool LEGAL>
-void Position::generateMoves(MoveList& moves)
+void Position::generateMoves(MoveList& moves) const
 {
 	static_assert(TURN == WHITE || TURN == BLACK,
 		"TURN template parameter should be either WHITE or BLACK in this function");
@@ -532,7 +532,7 @@ Move Position::moveFromAN(const std::string& strMove)
 			return MOVE_NONE;
 		const Square from = Square(rfrom, ffrom), to = Square(rto, fto);
 		if (strMove.size() == 6)
-			switch (tolower(strMove[5]))
+			switch (toupper(strMove[5]))
 			{
 			case 'N': return Move(from, to, MT_PROMOTION, KNIGHT);
 			case 'B': return Move(from, to, MT_PROMOTION, BISHOP);
@@ -654,7 +654,7 @@ Move Position::moveFromSAN(const std::string& moveSAN)
 //============================================================
 // Convert a move to SAN notation. It should be legal in current position
 //============================================================
-std::string Position::moveToSAN(Move move)
+std::string Position::moveToSAN(Move move) const
 {
 	Move legalMove;
 	MoveList moveList;
@@ -707,7 +707,7 @@ std::string Position::moveToSAN(Move move)
 }
 
 //============================================================
-// Convert a move to SAN notation. It should be legal in current position
+// Convert a move from UCI notation. It should be legal in current position
 //============================================================
 Move Position::moveFromUCI(const std::string& strMove)
 {
@@ -730,25 +730,6 @@ Move Position::moveFromUCI(const std::string& strMove)
 }
 
 //============================================================
-// Convert a move to UCI notation. It should be valid in current position
-//============================================================
-std::string Position::moveToUCI(Move move)
-{
-	if (move == MOVE_NONE)
-		return "0000";
-	std::string moveStr = move.from().toAN() + move.to().toAN();
-	if (move.type() == MT_PROMOTION)
-		switch (move.promotion())
-		{
-		case KNIGHT:	moveStr.push_back('n'); break;
-		case BISHOP:	moveStr.push_back('b'); break;
-		case ROOK:		moveStr.push_back('r'); break;
-		case QUEEN:		moveStr.push_back('q'); break;
-		}
-	return moveStr;
-}
-
-//============================================================
 // Convert move from given string format
 //============================================================
 Move Position::moveFromStr(const std::string& moveStr, MoveFormat moveFormat)
@@ -765,13 +746,13 @@ Move Position::moveFromStr(const std::string& moveStr, MoveFormat moveFormat)
 //============================================================
 // Convert move to given string format
 //============================================================
-std::string Position::moveToStr(Move move, MoveFormat moveFormat)
+std::string Position::moveToStr(Move move, MoveFormat moveFormat) const
 {
 	switch (moveFormat)
 	{
 	case FMT_AN: return move.toAN();
 	case FMT_SAN: return moveToSAN(move);
-	case FMT_UCI: return moveToUCI(move);
+	case FMT_UCI: return move.toUCI();
 	default: assert(false); return ""; // Should't get here
 	}
 }
@@ -1019,45 +1000,45 @@ void Position::writeFEN(std::ostream& ostr, bool omitCounters) const
 //============================================================
 // Explicit template instantiations
 //============================================================
-template void Position::revealPawnMoves<WHITE, true>(Bitboard, Square, MoveList&);
-template void Position::revealPawnMoves<WHITE, false>(Bitboard, Square, MoveList&);
-template void Position::revealPawnMoves<BLACK, true>(Bitboard, Square, MoveList&);
-template void Position::revealPawnMoves<BLACK, false>(Bitboard, Square, MoveList&);
-template void Position::revealMoves<WHITE, true>(Square, Bitboard, MoveList&);
-template void Position::revealMoves<WHITE, false>(Square, Bitboard, MoveList&);
-template void Position::revealMoves<BLACK, true>(Square, Bitboard, MoveList&);
-template void Position::revealMoves<BLACK, false>(Square, Bitboard, MoveList&);
-template void Position::generatePawnMoves<WHITE, MG_NON_CAPTURES, true>(MoveList&, Bitboard);
-template void Position::generatePawnMoves<WHITE, MG_NON_CAPTURES, false>(MoveList&, Bitboard);
-template void Position::generatePawnMoves<WHITE, MG_CAPTURES, true>(MoveList&, Bitboard);
-template void Position::generatePawnMoves<WHITE, MG_CAPTURES, false>(MoveList&, Bitboard);
-template void Position::generatePawnMoves<WHITE, MG_ALL, true>(MoveList&, Bitboard);
-template void Position::generatePawnMoves<WHITE, MG_ALL, false>(MoveList&, Bitboard);
-template void Position::generatePawnMoves<BLACK, MG_NON_CAPTURES, true>(MoveList&, Bitboard);
-template void Position::generatePawnMoves<BLACK, MG_NON_CAPTURES, false>(MoveList&, Bitboard);
-template void Position::generatePawnMoves<BLACK, MG_CAPTURES, true>(MoveList&, Bitboard);
-template void Position::generatePawnMoves<BLACK, MG_CAPTURES, false>(MoveList&, Bitboard);
-template void Position::generatePawnMoves<BLACK, MG_ALL, true>(MoveList&, Bitboard);
-template void Position::generatePawnMoves<BLACK, MG_ALL, false>(MoveList&, Bitboard);
-template void Position::generateFigureMoves<WHITE, true>(MoveList&, Bitboard);
-template void Position::generateFigureMoves<WHITE, false>(MoveList&, Bitboard);
-template void Position::generateFigureMoves<BLACK, true>(MoveList&, Bitboard);
-template void Position::generateFigureMoves<BLACK, false>(MoveList&, Bitboard);
-template void Position::generateMoves<WHITE, MG_EVASIONS, true>(MoveList&);
-template void Position::generateMoves<WHITE, MG_EVASIONS, false>(MoveList&);
-template void Position::generateMoves<WHITE, MG_NON_CAPTURES, true>(MoveList&);
-template void Position::generateMoves<WHITE, MG_NON_CAPTURES, false>(MoveList&);
-template void Position::generateMoves<WHITE, MG_CAPTURES, true>(MoveList&);
-template void Position::generateMoves<WHITE, MG_CAPTURES, false>(MoveList&);
-template void Position::generateMoves<WHITE, MG_ALL, true>(MoveList&);
-template void Position::generateMoves<WHITE, MG_ALL, false>(MoveList&);
-template void Position::generateMoves<BLACK, MG_EVASIONS, true>(MoveList&);
-template void Position::generateMoves<BLACK, MG_EVASIONS, false>(MoveList&);
-template void Position::generateMoves<BLACK, MG_NON_CAPTURES, true>(MoveList&);
-template void Position::generateMoves<BLACK, MG_NON_CAPTURES, false>(MoveList&);
-template void Position::generateMoves<BLACK, MG_CAPTURES, true>(MoveList&);
-template void Position::generateMoves<BLACK, MG_CAPTURES, false>(MoveList&);
-template void Position::generateMoves<BLACK, MG_ALL, true>(MoveList&);
-template void Position::generateMoves<BLACK, MG_ALL, false>(MoveList&);
+template void Position::revealPawnMoves<WHITE, true>(Bitboard, Square, MoveList&) const;
+template void Position::revealPawnMoves<WHITE, false>(Bitboard, Square, MoveList&) const;
+template void Position::revealPawnMoves<BLACK, true>(Bitboard, Square, MoveList&) const;
+template void Position::revealPawnMoves<BLACK, false>(Bitboard, Square, MoveList&) const;
+template void Position::revealMoves<WHITE, true>(Square, Bitboard, MoveList&) const;
+template void Position::revealMoves<WHITE, false>(Square, Bitboard, MoveList&) const;
+template void Position::revealMoves<BLACK, true>(Square, Bitboard, MoveList&) const;
+template void Position::revealMoves<BLACK, false>(Square, Bitboard, MoveList&) const;
+template void Position::generatePawnMoves<WHITE, MG_NON_CAPTURES, true>(MoveList&, Bitboard) const;
+template void Position::generatePawnMoves<WHITE, MG_NON_CAPTURES, false>(MoveList&, Bitboard) const;
+template void Position::generatePawnMoves<WHITE, MG_CAPTURES, true>(MoveList&, Bitboard) const;
+template void Position::generatePawnMoves<WHITE, MG_CAPTURES, false>(MoveList&, Bitboard) const;
+template void Position::generatePawnMoves<WHITE, MG_ALL, true>(MoveList&, Bitboard) const;
+template void Position::generatePawnMoves<WHITE, MG_ALL, false>(MoveList&, Bitboard) const;
+template void Position::generatePawnMoves<BLACK, MG_NON_CAPTURES, true>(MoveList&, Bitboard) const;
+template void Position::generatePawnMoves<BLACK, MG_NON_CAPTURES, false>(MoveList&, Bitboard) const;
+template void Position::generatePawnMoves<BLACK, MG_CAPTURES, true>(MoveList&, Bitboard) const;
+template void Position::generatePawnMoves<BLACK, MG_CAPTURES, false>(MoveList&, Bitboard) const;
+template void Position::generatePawnMoves<BLACK, MG_ALL, true>(MoveList&, Bitboard) const;
+template void Position::generatePawnMoves<BLACK, MG_ALL, false>(MoveList&, Bitboard) const;
+template void Position::generateFigureMoves<WHITE, true>(MoveList&, Bitboard) const;
+template void Position::generateFigureMoves<WHITE, false>(MoveList&, Bitboard) const;
+template void Position::generateFigureMoves<BLACK, true>(MoveList&, Bitboard) const;
+template void Position::generateFigureMoves<BLACK, false>(MoveList&, Bitboard) const;
+template void Position::generateMoves<WHITE, MG_EVASIONS, true>(MoveList&) const;
+template void Position::generateMoves<WHITE, MG_EVASIONS, false>(MoveList&) const;
+template void Position::generateMoves<WHITE, MG_NON_CAPTURES, true>(MoveList&) const;
+template void Position::generateMoves<WHITE, MG_NON_CAPTURES, false>(MoveList&) const;
+template void Position::generateMoves<WHITE, MG_CAPTURES, true>(MoveList&) const;
+template void Position::generateMoves<WHITE, MG_CAPTURES, false>(MoveList&) const;
+template void Position::generateMoves<WHITE, MG_ALL, true>(MoveList&) const;
+template void Position::generateMoves<WHITE, MG_ALL, false>(MoveList&) const;
+template void Position::generateMoves<BLACK, MG_EVASIONS, true>(MoveList&) const;
+template void Position::generateMoves<BLACK, MG_EVASIONS, false>(MoveList&) const;
+template void Position::generateMoves<BLACK, MG_NON_CAPTURES, true>(MoveList&) const;
+template void Position::generateMoves<BLACK, MG_NON_CAPTURES, false>(MoveList&) const;
+template void Position::generateMoves<BLACK, MG_CAPTURES, true>(MoveList&) const;
+template void Position::generateMoves<BLACK, MG_CAPTURES, false>(MoveList&) const;
+template void Position::generateMoves<BLACK, MG_ALL, true>(MoveList&) const;
+template void Position::generateMoves<BLACK, MG_ALL, false>(MoveList&) const;
 template int Position::perft<false>(Depth);
 template int Position::perft<true>(Depth);

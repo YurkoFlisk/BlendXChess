@@ -13,9 +13,26 @@ using namespace BlendXChess;
 //============================================================
 // Constructor
 //============================================================
-MultiSearcher::MultiSearcher(void)
+MultiSearcher::MultiSearcher(const SearchOptions& opt)
 	: inSearch(false)
-{}
+{
+	shared.processer = [](const SearchEvent&) {}; // Default no-op processer
+	setOptions(opt);
+}
+
+//============================================================
+// Destructor
+//============================================================
+MultiSearcher::~MultiSearcher(void)
+{
+	// We need this in case there's still some search OR if the last search
+	// was finished internally (so main thread was not joined)
+	if (!threads.empty() && threads[0].handle.joinable())
+	{
+		shared.stopSearch = true;
+		threads[0].handle.join();
+	}
+}
 
 //============================================================
 // Constructor
@@ -43,7 +60,7 @@ void Searcher::initialize(const Position& pos, SearchOptions* options, SharedInf
 //============================================================
 // Starts search with given depth
 //============================================================
-void MultiSearcher::startSearch(const Position& pos, const SearchOptions& options)
+void MultiSearcher::startSearch(const Position& pos)
 {
 	// If we are already in search, the new one won't be launched
 	if (inSearch)
@@ -52,21 +69,24 @@ void MultiSearcher::startSearch(const Position& pos, const SearchOptions& option
 	setThreadCount(options.threadCount);
 	// Indicate beginning of search
 	inSearch = true;
-	// Copy input data to internal storage (it's just safer
-	// not to assume they will remain valid during thread execution)
+	// Copy input position to internal storage (it's just safer
+	// not to assume it will remain valid during thread execution)
 	this->pos = pos;
-	this->options = options;
 	// Safety check (TODO: maybe get rid of depth limiting (but then dynamic memory
 	// will be used in some places, with hopefully rarely (de-)allocating)?)
 	if (options.depth > SEARCH_DEPTH_MAX)
-		this->options.depth = SEARCH_DEPTH_MAX;
+		options.depth = SEARCH_DEPTH_MAX;
 	// Reset misc info
 	shared.stopSearch = false;
 	shared.externalStop = false;
 	shared.timeout = false;
-	// Start the main search thread
-	threads[0].handle = std::thread(&MultiSearcher::search, this);
-	if (!threads[0].handle.joinable())
+	// Start the main search thread. If the last search was finished
+	// internally, the main thread was not joined, so we need to join it here.
+	std::thread& mainThreadHandle = threads[0].handle;
+	if (mainThreadHandle.joinable()) // !
+		mainThreadHandle.join();
+	mainThreadHandle = std::thread(&MultiSearcher::search, this);
+	if (!mainThreadHandle.joinable())
 	{
 		inSearch = false;
 		throw std::runtime_error("Unable to create valid main search thread");
@@ -74,34 +94,34 @@ void MultiSearcher::startSearch(const Position& pos, const SearchOptions& option
 }
 
 //============================================================
-// Ends started search (throws if there was no one) and returns search information
+// Ends started search and returns search information
+// Returns last search results if no one is performed at the moment
 //============================================================
 SearchReturn MultiSearcher::endSearch(void)
 {
 	if (!inSearch)
-		throw std::runtime_error("There's no search in progress.");
-	// Set stop flag and wait for finishing search
-	if (!shared.stopSearch)
+		// throw std::runtime_error("There's no search in progress.");
+		return lastSearchReturn;
+	// If it's not called from search(), we should wait for main search thread to finish
+	if (std::this_thread::get_id() != threads[0].handle.get_id())
 	{
-		shared.stopCause = StopCause::END_SEARCH_CALL;
-		shared.externalStop = true;
-		shared.stopSearch = true;
+		// Set stop flag and wait for finishing search
+		if (!shared.stopSearch)
+		{
+			shared.stopCause = StopCause::END_SEARCH_CALL;
+			shared.externalStop = true;
+			shared.stopSearch = true;
+		}
+		threads[0].handle.join();
 	}
-	threads[0].handle.join(); // even if it terminated before, it's still needed
 	// Select best thread to retrieve info from
 	auto bestThreadIt = bestThread();
-	// Save stats if requested
-	SearchStats stats;
-	if constexpr (SEARCH_NODES_COUNT_ENABLED)
-		stats.visitedNodes = shared.visitedNodes;
-	if constexpr (TT_HITS_COUNT_ENABLED)
-		stats.ttHits = shared.ttHits;
 	// Signalize the end of search
 	inSearch = false;
 	// Increment transposition table age (for future searches)
 	transpositionTable.incrementAge();
 	// Return the results
-	return { bestThreadIt->results, stats };
+	return lastSearchReturn = { bestThreadIt->results, shared.stats };
 }
 
 //============================================================
@@ -111,9 +131,9 @@ void MultiSearcher::search(void)
 {
 	// Misc
 	if constexpr (TT_HITS_COUNT_ENABLED)
-		shared.ttHits = 0;
+		shared.stats.ttHits = 0;
 	if constexpr (SEARCH_NODES_COUNT_ENABLED)
-		shared.visitedNodes = 0;
+		shared.stats.visitedNodes = 0;
 	// Setup time management
 	if constexpr (TIME_CHECK_ENABLED)
 	{
@@ -143,8 +163,7 @@ void MultiSearcher::search(void)
 	{
 		if (!shared.timeout)
 			shared.stopCause = StopCause::DEPTH_REACHED;
-		auto bestIt = bestThread();
-		shared.processer(SearchEvent(SearchEventType::FINISHED, bestIt->results));
+		shared.processer(SearchEvent(SearchEventType::FINISHED, endSearch()));
 	}
 }
 
@@ -403,7 +422,8 @@ void Searcher::idSearch(Depth depth)
 		}
 		// Send info to external event processer
 		if (isMainThread())
-			shared->processer(SearchEvent(SearchEventType::INFO, threadLocal->results));
+			shared->processer(SearchEvent(SearchEventType::INFO,
+				{ threadLocal->results, shared->stats }));
 	}
 }
 
@@ -416,7 +436,7 @@ Score Searcher::quiescentSearch(Score alpha, Score beta)
 	static constexpr Score DELTA_MARGIN = 400;
 	// Increment search nodes count
 	if constexpr (SEARCH_NODES_COUNT_ENABLED)
-		++shared->visitedNodes;
+		++shared->stats.visitedNodes;
 	// Get stand-pat score
 	const Score standPat = evaluate();
 	// We assume there's always a move that will increase score, so if
@@ -502,7 +522,7 @@ Score Searcher::pvs(Depth depth, Score alpha, Score beta)
 		return quiescentSearch(alpha, beta);
 	// Increment search nodes count
 	if constexpr (SEARCH_NODES_COUNT_ENABLED)
-		++shared->visitedNodes;
+		++shared->stats.visitedNodes;
 	// Check for 50-rule draw
 	if (pos.info.rule50 >= 100)
 		return SCORE_ZERO;
@@ -524,7 +544,7 @@ Score Searcher::pvs(Depth depth, Score alpha, Score beta)
 		}
 		ttMove = ttEntry->move;
 		if constexpr (TT_HITS_COUNT_ENABLED)
-			++shared->ttHits;
+			++shared->stats.ttHits;
 	}
 	PositionInfo prevState;
 	MoveManager moveManager(*this, ttMove);

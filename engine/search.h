@@ -26,13 +26,14 @@ namespace BlendXChess
 	constexpr bool TT_HITS_COUNT_ENABLED = true;
 	constexpr bool TIME_CHECK_ENABLED = true;
 #endif
-	constexpr int TIME_CHECK_INTERVAL = 10000; // nodes entered by pvs
-	constexpr int TIME_LIMIT_DEFAULT = 5000; // ms
-	constexpr int TIME_LIMIT_MIN = 100; // ms
-	constexpr int TIME_LIMIT_MAX = 1000000; // ms
+	constexpr unsigned int TIME_CHECK_INTERVAL = 10000; // nodes entered by pvs
+	constexpr unsigned int TIME_LIMIT_DEFAULT = 5000; // ms
+	constexpr unsigned int TIME_LIMIT_MIN = 100; // ms
+	constexpr unsigned int TIME_LIMIT_MAX = 1000000; // ms
 	constexpr Depth SEARCH_DEPTH_DEFAULT = 10;
 	constexpr Depth SEARCH_DEPTH_MIN = 1;
 	constexpr Depth SEARCH_DEPTH_MAX = 60;
+	constexpr unsigned int THREAD_COUNT_MIN = 1;
 
 	//============================================================
 	// Structs for storing results and stats of search returned by endSearch
@@ -47,8 +48,18 @@ namespace BlendXChess
 
 	struct SearchStats
 	{
-		int ttHits;
-		int visitedNodes;
+		std::atomic<int> ttHits;
+		std::atomic<int> visitedNodes;
+		inline SearchStats(void) = default;
+		inline SearchStats(const SearchStats& rhs)
+			: ttHits(rhs.ttHits.load()), visitedNodes(rhs.visitedNodes.load())
+		{}
+		inline SearchStats& operator=(const SearchStats& rhs)
+		{
+			ttHits = rhs.ttHits.load();
+			visitedNodes = rhs.visitedNodes.load();
+			return *this;
+		}
 	};
 
 	typedef std::pair<SearchResults, SearchStats> SearchReturn;
@@ -66,11 +77,11 @@ namespace BlendXChess
 	struct SearchEvent
 	{
 		inline SearchEvent(SearchEventType = SearchEventType::NONE,
-			SearchResults = SearchResults());
+			SearchReturn = SearchReturn());
 		SearchEventType type;
-		SearchResults results; // valid if type == INFO
+		SearchReturn results; // valid if type == INFO or type == FINISHED
 	};
-
+	constexpr int t = std::is_default_constructible_v<SearchStats>;
 	using EngineProcesser = std::function<void(const SearchEvent&)>;
 
 	//============================================================
@@ -101,9 +112,8 @@ namespace BlendXChess
 			std::atomic<Move> move;
 		};
 		TimePoint startTime; // read-only while accessed multithreaded, thus not atomic
+		SearchStats stats;
 		std::atomic_int timeCheckCounter;
-		std::atomic_int ttHits;
-		std::atomic_int visitedNodes;
 		std::atomic_bool stopSearch;
 		std::atomic_bool externalStop;
 		std::atomic_bool timeout;
@@ -126,29 +136,41 @@ namespace BlendXChess
 	{
 	public:
 		// Constructor
-		MultiSearcher(void);
+		MultiSearcher(const SearchOptions& = DEFAULT_SEARCH_OPTIONS);
+		// Destructors
+		~MultiSearcher(void);
 		// Getters
+		static inline unsigned int getMaxThreadCount(void);
+		inline const SearchOptions& getOptions(void) const;
 		inline bool isInSearch(void) const;
-		static inline int getMaxThreadCount(void);
+		// Setters
+		inline void setThreadCount(unsigned int);
+		inline void setTimeLimit(unsigned int);
+		inline void setDepth(Depth);
+		inline void setOptions(const SearchOptions&);
 		// Setup external search event processer
 		inline void setProcesser(const EngineProcesser&);
 		// Starts search with given depth
-		void startSearch(const Position&, const SearchOptions& options = DEFAULT_SEARCH_OPTIONS);
-		// Ends started search (throws if there was no one) and returns search information
+		void startSearch(const Position&);
+		// Ends started search and returns search information
+		// Returns last search results if no one is performed at the moment
 		SearchReturn endSearch(void);
 		// Internal search logic (coordinates searching process, launches Searcher threads)
 		void search(void);
 	private:
-		// Setters (actual search parameters are given in startSearch parameters, thus setter is private)
-		inline void setThreadCount(int);
+		// Helper setter method
+		template<typename T>
+		inline void clampSetter(T&, T, T, const std::string&, T, const std::string&);
 		// Select (currently) best search thread
 		ThreadList::iterator bestThread(void);
 		// Shared transposition table
-		TranspositionTable transpositionTable;
+		static inline TranspositionTable transpositionTable;
 		// Shared search info
 		SharedInfo shared;
 		// Shared search options
 		SearchOptions options;
+		// Result of last performed search
+		SearchReturn lastSearchReturn;
 		// Position
 		Position pos;
 		// Search threads info by index (main search thread has index 0)
@@ -157,7 +179,7 @@ namespace BlendXChess
 		// Whether search is currently launched
 		std::atomic_bool inSearch;
 		// Maximum thread count
-		static inline int maxThreadCount = std::thread::hardware_concurrency();
+		static inline unsigned int maxThreadCount = std::thread::hardware_concurrency();
 		// Dummy variables for out reference parameters
 		static Depth _dummyDepth;
 		static int _dummyInt;
@@ -261,7 +283,7 @@ namespace BlendXChess
 	// Implementation of inline functions
 	//============================================================
 
-	inline SearchEvent::SearchEvent(SearchEventType type, SearchResults results)
+	inline SearchEvent::SearchEvent(SearchEventType type, SearchReturn results)
 		: type(type), results(results)
 	{}
 
@@ -270,9 +292,14 @@ namespace BlendXChess
 		return inSearch;
 	}
 
-	inline int MultiSearcher::getMaxThreadCount(void)
+	inline unsigned int MultiSearcher::getMaxThreadCount(void)
 	{
-		return maxThreadCount;
+		return maxThreadCount = std::thread::hardware_concurrency();
+	}
+
+	inline const SearchOptions & MultiSearcher::getOptions(void) const
+	{
+		return options;
 	}
 
 	inline void MultiSearcher::setProcesser(const EngineProcesser& proc)
@@ -282,19 +309,64 @@ namespace BlendXChess
 		shared.processer = proc;
 	}
 
-	inline void MultiSearcher::setThreadCount(int threadCount)
+	template<typename T>
+	inline void MultiSearcher::clampSetter(T& option, T value,
+		T minValue, const std::string& lessError,
+		T maxValue, const std::string& biggerError)
+	{
+		static_assert(std::is_arithmetic_v<T>, "'T' should be numeric type");
+		if (value < minValue)
+		{
+			option = minValue;
+			throw std::runtime_error(lessError);
+		}
+		if (value > maxValue)
+		{
+			option = maxValue;
+			throw std::runtime_error(biggerError);
+		}
+		option = value;
+	}
+
+	inline void MultiSearcher::setThreadCount(unsigned int threadCount)
 	{
 		if (inSearch)
-			throw std::runtime_error("Can't change thread count while in search");
-		if (threadCount <= 0)
-			throw std::runtime_error("Thread count can't be non-positive");
-		// Update max thread count and clamp thread count if needed
-		maxThreadCount = std::thread::hardware_concurrency();
-		if (threadCount > maxThreadCount)
-			threadCount = maxThreadCount;
-		options.threadCount = threadCount;
+			throw std::runtime_error("Error: Can't change thread count while in search");
+		clampSetter(options.threadCount, threadCount,
+			THREAD_COUNT_MIN, "Warning: Thread count must be positive and is set to 1",
+			getMaxThreadCount(), "Warning: Thread count is too big and is set to "
+			+ std::to_string(getMaxThreadCount()));
+		// Update size of dependant structures
 		threads.resize(threadCount);
 		shared.rootSearchStates.resize(threadCount);
+	}
+
+	inline void MultiSearcher::setTimeLimit(unsigned int timeLimit)
+	{
+		if (inSearch)
+			throw std::runtime_error("Error: Can't change time limit while in search");
+		clampSetter(options.timeLimit, timeLimit,
+			TIME_LIMIT_MIN, "Warning: Time limit must be at least "
+			+ std::to_string(TIME_LIMIT_MIN) + "ms and is set to this",
+			TIME_LIMIT_MAX, "Warning: Time limit must be maximum "
+			+ std::to_string(TIME_LIMIT_MAX) + "ms and is set to this");
+	}
+
+	inline void MultiSearcher::setDepth(Depth depth)
+	{
+		if (inSearch)
+			throw std::runtime_error("Error: Can't change time limit while in search");
+		clampSetter(options.depth, depth,
+			SEARCH_DEPTH_MIN, "Warning: Depth must be positive and is set to 1",
+			SEARCH_DEPTH_MAX, "Warning: Thread count is too big and is set to "
+			+ std::to_string(SEARCH_DEPTH_MAX));
+	}
+
+	inline void MultiSearcher::setOptions(const SearchOptions& opt)
+	{
+		setThreadCount(opt.threadCount);
+		setDepth(opt.depth);
+		setTimeLimit(opt.timeLimit);
 	}
 
 	inline bool Searcher::isMainThread(void) const
