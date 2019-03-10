@@ -540,8 +540,7 @@ Move Position::moveFromAN(const std::string& strMove)
 			case 'Q': return Move(from, to, MT_PROMOTION, QUEEN);
 			default: return MOVE_NONE;
 			}
-		else if (getPieceType(board[from]) == PAWN && distance(from, to) == 2
-			&& board[to] == PIECE_NULL && rto == relRank(2, turn))
+		else if (getPieceType(board[from]) == PAWN && to == info.epSquare)
 			return Move(from, to, MT_EN_PASSANT);
 		else
 			return Move(from, to);
